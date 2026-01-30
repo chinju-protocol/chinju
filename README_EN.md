@@ -17,13 +17,26 @@
 - [Patent Details](#patent-details)
 - [Directory Structure](#directory-structure)
 - [License](#license)
+- [Trademark & Brand Usage](#trademark--brand-usage)
+- [Vision](#vision)
 
 ---
 
 ## Overview
 
-CHINJU consists of 9 patents forming an AI safety layer.
+CHINJU consists of 12 patents forming an AI safety layer.
 Based on the premise that "software alone cannot stop AI," it prevents AI runaway through **physical irreversibility** and **mathematical principles**.
+
+---
+
+## Why Now?
+
+As of 2026, researchers at the forefront of AI development are warning that "Powerful AI capable of surpassing humans could emerge within 1-2 years."
+
+> "the formula for building powerful AI systems is incredibly simple ... Its creation was probably inevitable"
+> — Dario Amodei, CEO of Anthropic (January 2026)
+
+Software-only countermeasures (such as Constitutional AI) are insufficient. **A mechanism to physically stop AI** is needed. CHINJU provides that answer.
 
 ---
 
@@ -74,6 +87,9 @@ Based on the premise that "software alone cannot stop AI," it prevents AI runawa
 | **C7** | Data Sovereignty Learning Refusal System | Adversarial perturbations poison unauthorized AI learning | Digital Watermarks |
 | **C8** | Metric Definition Registry and Dialogue Generation System | Fixes metric definitions in JSON schema to prevent retroactive changes | Definition Registry |
 | **C9** | Regional Policy Pack Constraint Switching System | Swaps constraints per jurisdiction via policy packs | Public Registry |
+| **C10** | Concept Definition Immutability Proof System | Fixes definition hashes in OTP, physically prevents tampering | OTP, HSM |
+| **C11** | Large Language Model Reliability Maintenance System | Measures LLM Logical Phase Transition point, protects service on quality degradation | OTP, Resource Restriction |
+| **C12** | Human Subject Integrated Authentication System | Authenticates humans via identity (signature chains) and mortality (degradation patterns) | PUF, Sensors |
 
 ---
 
@@ -90,6 +106,9 @@ Based on the premise that "software alone cannot stop AI," it prevents AI runawa
 | C7 | Data Sovereignty Learning Refusal System and Model Contamination Prevention Method | Patent Pending (Japan App. No. 2025-250097) |
 | C8 | Metric Definition Registry, Machine Verification, and Dialogue Generation Support System | Patent Pending (Japan App. No. 2025-250402) |
 | C9 | Regional Policy Pack Constraint Switching and Authentication Gate System | Patent Pending (Japan App. No. 2025-250406) |
+| C10 | Concept Definition Immutability Proof System and Semantic Tampering Prevention Method | Patent Pending (Japan App. No. 2026-015023) |
+| C11 | Large Language Model Reliability Maintenance System | Patent Pending (Japan App. No. 2026-015025) |
+| C12 | Human Subject Integrated Authentication System and Identity/Mortality Composite Proof Method | Patent Pending (Japan App. No. 2026-015024) |
 
 ## Architecture Overview
 
@@ -398,12 +417,51 @@ chinju-ip/
 
 ## License
 
-This patent portfolio has been filed. **We will not enforce patent rights (implementation is free)**.
+Code and documentation in this repository are released under **Apache License 2.0**.
+
+This patent portfolio has been filed. **We will not enforce patent rights against CHINJU Compatible displayers**.
 
 | Item | Description |
 |:--|:--|
-| **Implementation** | Free (anyone can implement, no permission needed) |
+| **Software** | Apache License 2.0 |
+| **Patents** | Not enforced against users who comply with the Charter |
 | **Certification** | Certification program available (paid, planned) for official recognition |
+
+### Relationship Between License and Patents
+
+| Subject | Applicable |
+|:--|:--|
+| **Code & Documentation** | Apache License 2.0 (copyright) |
+| **CHINJU Patent Portfolio (C1-C12)** | Patent Policy (separate) |
+
+Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
+
+### Patent Policy
+
+| User | Patent Enforcement |
+|:--|:--|
+| **CHINJU Certified** holders | **Not enforced** |
+| **CHINJU Compatible** displayers | **Not enforced** |
+| Uses CHINJU technology without display | **May be enforced** (policy violation) |
+| Misuse / attackers | **Enforced** (subject to litigation) |
+
+**Important**: If you use CHINJU technology, we recommend obtaining "CHINJU Certified" certification or displaying "CHINJU Compatible".
+
+See [CHINJU Charter](./CHINJU_憲章_v1.0.md) Article 10 for details.
+
+### Trademark & Brand Usage
+
+| Name | Requirements | Description |
+|:--|:--|:--|
+| **CHINJU** | Official certification (contract) required | Only for products/services that have passed certification |
+| **CHINJU Certified** | Official certification (contract) required | Official certification mark. Only for certified entities |
+| **CHINJU Compatible** | Free (with conditions) | For implementations that comply with the protocol |
+
+**CHINJU Compatible Requirements**:
+- Must comply with the protocol specifications in this repository
+- Must display "CHINJU Compatible" or equivalent
+- Cannot use "CHINJU" alone (to avoid confusion with official certification)
+- Must clearly state "unofficial implementation"
 
 ### About Defensive Publication
 
@@ -413,4 +471,19 @@ By publishing this repository, the described technologies become **prior art**.
 |:--|:--|
 | **Blocks third-party patents** | Prior art lacks novelty; others cannot obtain patents on identical technology |
 | **Defense against existing patents** | Serves as grounds for invalidating similar patents filed after this publication date |
-| **Guarantees free implementation** | We will not enforce patent rights, so anyone can implement without permission |
+| **Guarantees free implementation** | CHINJU Compatible display enables free implementation |
+
+---
+
+## Vision
+
+CHINJU aims to build an open technology standard and certification ecosystem, similar to **Linux Foundation / CNCF** and **Wi-Fi Alliance**.
+
+| Reference Model | Description |
+|:--|:--|
+| **Linux Foundation / CNCF** | OSS technology + certification programs (CKA, CKAD, etc.) |
+| **Wi-Fi Alliance** | Open specification + Wi-Fi Certified |
+| **Bluetooth SIG** | Open specification + Bluetooth Certified |
+| **Red Hat** | OSS (Linux) + enterprise support |
+
+Technology is open; quality is guaranteed through certification.
