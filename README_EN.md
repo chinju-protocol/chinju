@@ -111,6 +111,7 @@ All patents are filed in Japan and are scheduled for PCT international applicati
 | C10 | Concept Definition Immutability Proof System and Semantic Tampering Prevention Method | Patent Pending (Japan App. No. 2026-015023) |
 | C11 | Large Language Model Reliability Maintenance System | Patent Pending (Japan App. No. 2026-015025) |
 | C12 | Human Subject Integrated Authentication System and Identity/Mortality Composite Proof Method | Patent Pending (Japan App. No. 2026-015024) |
+| C13 | AI Model Confinement System and Physical/Informational Leakage Prevention Method | Patent Pending (Japan App. No. 2026-015026) |
 
 ## Architecture Overview
 
@@ -132,15 +133,16 @@ All patents are filed in Japan and are scheduled for PCT international applicati
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    AI Output Control Layer                   │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                      │
-│  │C2 Choice│  │C6 Advers│  │C7 Learn │                      │
-│  │ Quality │  │  Audit  │  │ Refusal │                      │
-│  └────┬────┘  └────┬────┘  └────┬────┘                      │
-│       │            │            │                            │
-│       ▼            ▼            ▼                            │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐     │
+│  │C2 Choice│  │C6 Advers│  │C7 Learn │  │C13 Con- │     │
+│  │ Quality │  │  Audit  │  │ Refusal │  │ finement│     │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘     │
+│       │            │            │            │               │
+│       ▼            ▼            ▼            ▼               │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Information-Theoretic Layer            │   │
 │  │  QRNG(unpredictable) + Entropy(quantify) + Adversarial  │
+│  │  + Output Sanitization (Steganography Destruction)      │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -393,7 +395,7 @@ Timestamp inconsistency = Tampering detected
 ## Directory Structure
 
 ```
-chinju-ip/
+chinju/
 ├── README.md                 # Japanese version
 ├── README_EN.md              # This file (English)
 ├── c1_*.md 〜 c9_*.md        # Patent specifications (9 files, Japanese)
@@ -414,6 +416,31 @@ chinju-ip/
     ├── traits/               # Abstraction interfaces
     └── extensions/           # Extensions
 ```
+
+---
+
+## FAQ
+
+### Q: Is it difficult to integrate into existing systems? (Hardware requirements, etc.)
+**A:** We adopt the "Sidecar" pattern, so there is no need to change existing application code.
+Simply deploy CHINJU Sidecar as an OpenAI API compatible proxy and point your application's `base_url` to the Sidecar to transparently use governance functions (audit, policy enforcement, token control).
+While hardware like HSMs is "recommended," the system works with software emulation (SoftHSM) in the initial stages, allowing for gradual security hardening.
+
+### Q: What is the incentive for companies to adopt this protocol?
+**A:** In addition to technical benefits (immediate deployment of governance features), there is a "Defensive Patent Strategy" based on Article 9 of the Charter.
+If you adopt CHINJU (Compatible/Certified), you can use the patented technology for free. However, independent implementations that infringe on the patents may be subject to enforcement. Thus, adopting CHINJU is the legally safest option for implementing AI safety technology.
+
+### Q: Can't AI cheat the capability test (C12) by whispering the "correct answer" to humans?
+**A:** This is prevented by the "Behavioral Anomaly Detection" in C11 (LPT Monitor).
+If an AI behaves differently from normal (e.g., pandering to humans, guiding answers), it is detected as a statistical deviation in output patterns (KL divergence, etc.), and the system is shut down.
+
+### Q: How mature is the implementation? Is it just theory?
+**A:** Core functions are already implemented in Rust.
+We have completed Phase 4 (Security Hardening), and features like Threshold Signatures (FROST), Policy Engine, Audit Logging, and LPT Monitoring are operational. This is a battle-ready codebase, not just theory.
+
+### Q: Why Rust?
+**A:** To balance performance and safety in AI governance.
+Adopting Rust allows us to achieve both low-latency proxy processing and robust security logic through a strict type system.
 
 ---
 

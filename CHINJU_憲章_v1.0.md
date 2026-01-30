@@ -6,7 +6,7 @@
 
 # CHINJU Protocol Charter
 
-CHINJU は、**AIと人間の共存** を実現するためのプロトコルである。
+CHINJU は、**人類とAIの共存** を実現するためのプロトコルである。
 
 CHINJU は OSS として世界に開かれるが、**思想（Charter）だけは不可逆にロックされる。**
 

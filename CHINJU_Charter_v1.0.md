@@ -6,7 +6,7 @@
 
 # CHINJU Protocol Charter
 
-CHINJU is a protocol designed to realize **coexistence between AI and humans**.
+CHINJU is a protocol designed to realize **coexistence between humans and AI**.
 
 While CHINJU is open to the world as OSS, its **philosophy (Charter) is irreversibly locked.**
 
