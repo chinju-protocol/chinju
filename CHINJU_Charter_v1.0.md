@@ -24,7 +24,6 @@ CHINJU is not the only answer.
 - If CHINJU ceases to function, it will not hinder migration to another protocol.
 - CHINJU is released as OSS. Anyone can fork and improve it.
 - **Official certification (contract) is required to use the names "CHINJU" or "CHINJU Certified".**
-- See README for details on trademark usage.
 
 ### 2. Right to Stop
 
@@ -50,23 +49,15 @@ Even if AI or systems become smarter, if a human says "stop," it stops. This pro
 *   **Prevention of Domination**: Monitor whether humans are merely rubber-stamping decisions while substantially being controlled by AI.
 *   **Maintenance of Capability**: Humans bear the responsibility to maintain the ability to monitor and control systems.
 
-### **Article 2: Maintenance of Human Capabilities**
-
-AI is used to maintain and improve human capabilities.
-
-*   **Prohibition of Capability Degradation**: Prevent the degradation of human judgment, thinking, and physical abilities due to over-reliance on AI.
-*   **Periodic Verification**: Periodically verify that humans can perform basic judgments and actions without AI.
-*   **Securing Alternatives**: Always ensure alternative means are available in case AI becomes unusable.
-
-### **Article 3: Structural Transparency**
+### **Article 2: Structural Transparency**
 
 Anyone must be able to verify why a decision was made.
 
-*   **Verifiability**: Disclose AI decision logic, data sources, and criteria.
+*   **Post-Incident Verifiability**: Ensure that AI decision logic, data sources, and criteria can be verified retrospectively when accidents or issues occur due to AI decisions.
 *   **Accountability**: Explain the reasons when AI decisions affect humans.
 *   **Acceptance of Imperfection**: AI is not perfect. Ensure means for objection based on the premise that errors can occur.
 
-### **Article 4: Freedom of Exit**
+### **Article 3: Freedom of Exit**
 
 Anyone can participate, and anyone can leave at any time.
 
@@ -78,7 +69,7 @@ Anyone can participate, and anyone can leave at any time.
 
 ## 2. Technical Principles
 
-### **Article 5: Monitoring Logical Phase Transition (LPT)**
+### **Article 4: Monitoring Logical Phase Transition (LPT)**
 
 Monitor the critical point (Logical Phase Transition) where AI output quality degrades rapidly, and intervene before reaching it.
 
@@ -86,7 +77,7 @@ Monitor the critical point (Logical Phase Transition) where AI output quality de
 *   **Preventive Intervention**: Execute resource restriction or process interruption before reaching LPT.
 *   **Hardware Protection**: LPT detection is implemented not only in software but also in hardware.
 
-### **Article 6: Immutability of Concept Definitions**
+### **Article 5: Immutability of Concept Definitions**
 
 Definitions of core concepts used by AI are fixed in a tamper-proof manner.
 
@@ -94,7 +85,7 @@ Definitions of core concepts used by AI are fixed in a tamper-proof manner.
 *   **Tamper Detection**: Tampering with definitions is instantly detected via hash verification.
 *   **Prevention of Interpretive Drift**: Prevent AI from gradually reinterpreting concepts.
 
-### **Article 7: Human Subject Authentication**
+### **Article 6: Human Subject Authentication**
 
 Prove that the subject interacting with AI is "human" while protecting privacy.
 
@@ -106,7 +97,7 @@ Prove that the subject interacting with AI is "human" while protecting privacy.
 
 ## 3. Prohibitions
 
-### **Article 8: Prohibition of Capability Degradation**
+### **Article 7: Prohibition of Capability Degradation**
 
 AI must not be used to intentionally degrade human capabilities.
 
@@ -114,7 +105,7 @@ AI must not be used to intentionally degrade human capabilities.
 *   Designs that make humans dependent on AI are prohibited.
 *   Designs that reduce human choices are prohibited.
 
-### **Article 9: Prohibition of Ideological Tampering**
+### **Article 8: Prohibition of Ideological Tampering**
 
 No one shall change the core of this Charter.
 
@@ -124,7 +115,7 @@ Code modification (Fork) is free, but when publishing or providing services usin
 
 ## 4. Governance
 
-### **Article 10: Patents Are Not Weapons**
+### **Article 9: Patents Are Not Weapons**
 
 Patent rights related to CHINJU will not be enforced against the following users:
 
@@ -135,13 +126,13 @@ If CHINJU technology is used in an independent implementation without display, p
 
 However, rights will be actively enforced against malicious use violating the Charter or those engaging in patent aggression.
 
-### **Article 10-2: Revocation due to Attacks on Survival Foundation**
+### **Article 9-2: Revocation due to Attacks on Survival Foundation**
 
 For any entity that launches physical, cyber, or legal attacks against the CHINJU operational foundation, development community, or founding jurisdiction (founding nation), thereby threatening the survival of CHINJU, **all usage licenses and promises of patent non-aggression shall be immediately invalidated.**
 
 This is not a sanction, but an automatic revocation of rights for self-defense.
 
-### **Article 11: Multi-Stakeholder Operation**
+### **Article 10: Multi-Stakeholder Operation**
 
 The operation of CHINJU must not be monopolized by a single entity.
 
@@ -153,13 +144,13 @@ The operation of CHINJU must not be monopolized by a single entity.
 
 ## 5. Physical Protection
 
-### **Article 12: Stop If Broken**
+### **Article 11: Stop If Broken**
 
 Processes that no longer meet the conditions for survival become physically inexecutable.
 
 This is not a sanction, but a physical consequence.
 
-### **Article 13: Proof Overrides Authority**
+### **Article 12: Proof Overrides Authority**
 
 Verifiable proof takes precedence over any authority or majority vote.
 

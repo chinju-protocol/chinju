@@ -449,7 +449,13 @@ Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 
 **Important**: If you use CHINJU technology, we recommend obtaining "CHINJU Certified" certification or displaying "CHINJU Compatible".
 
-See [CHINJU Charter](./CHINJU_Charter_v1.0.md) Article 10 for details.
+See [CHINJU Charter](./CHINJU_Charter_v1.0.md) Article 9 for details.
+
+### Commercial License (White Label)
+
+If displaying "CHINJU Compatible" is difficult due to corporate policy or branding, or if you wish to use the technology under your own brand (White Label), you can obtain a separate commercial license (paid) to waive the display requirement.
+
+Please contact the secretariat for detailed terms and contracts.
 
 ### Trademark & Brand Usage
 
