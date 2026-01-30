@@ -94,6 +94,8 @@ CHINJUは、AI安全層を構成する12件の特許から成る。
 
 ## Patent Status
 
+All patents are filed in Japan and are scheduled for PCT international application.
+
 | ID | Title | Status |
 |:--|:--|:--|
 | C1 | AI制御権を持つ人間の能力維持保証システムおよび方法 | Patent Pending (Japan App. No. 2025-209919) |

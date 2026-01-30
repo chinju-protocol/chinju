@@ -95,6 +95,8 @@ Software-only countermeasures (such as Constitutional AI) are insufficient. **A 
 
 ## Patent Status
 
+All patents are filed in Japan and are scheduled for PCT international application.
+
 | ID | Title | Status |
 |:--|:--|:--|
 | C1 | Human Capability Assurance Layer System and Method for AI Control | Patent Pending (Japan App. No. 2025-209919) |
@@ -447,7 +449,7 @@ Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 
 **Important**: If you use CHINJU technology, we recommend obtaining "CHINJU Certified" certification or displaying "CHINJU Compatible".
 
-See [CHINJU Charter](./CHINJU_憲章_v1.0.md) Article 10 for details.
+See [CHINJU Charter](./CHINJU_Charter_v1.0.md) Article 10 for details.
 
 ### Trademark & Brand Usage
 
