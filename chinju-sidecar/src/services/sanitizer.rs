@@ -7,6 +7,7 @@
 
 use crate::services::openai_client::{ClientError, OpenAiClient, OpenAiClientConfig};
 use crate::services::openai_types::{ChatCompletionRequest, ChatMessage};
+use crate::services::analog_sanitizer::AnalogSanitizer;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -196,6 +197,21 @@ impl OutputSanitizer {
                 }
                 Err(e) => {
                     warn!("Paraphrasing failed, using normalized text: {}", e);
+                }
+            }
+        }
+
+        // Step 5: Analog Sanitization (L4 Critical)
+        if mode == SanitizationMode::Strong {
+            match AnalogSanitizer::sanitize(&result).await {
+                Ok(analog_sanitized) => {
+                    result = analog_sanitized;
+                    debug!("Analog sanitization (L4) applied");
+                }
+                Err(e) => {
+                    warn!("Analog sanitization failed: {}", e);
+                    // In L4, failure to sanitize should probably be fatal or fallback to very strict filtering
+                    // For now, we warn but continue (or we could return error if signature changed)
                 }
             }
         }

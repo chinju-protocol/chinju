@@ -622,8 +622,7 @@ impl TpmDeadMansSwitch {
             .as_secs()
     }
 
-    /// Start background monitoring
-    pub fn start_monitoring(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+    fn start_monitoring(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         let switch = self.clone();
 
         tokio::spawn(async move {

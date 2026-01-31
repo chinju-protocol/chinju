@@ -9,6 +9,7 @@
 //! - L3 (YubiHSM): Hardware HSM
 
 pub mod dead_mans_switch;
+pub mod physical_kill_switch;
 pub mod mock;
 pub mod provider;
 pub mod traits;

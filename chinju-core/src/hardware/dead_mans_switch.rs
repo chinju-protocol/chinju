@@ -154,6 +154,9 @@ pub trait DeadMansSwitch: Send + Sync {
     /// Send heartbeat signal
     fn heartbeat(&self) -> Result<(), DeadMansSwitchError>;
 
+    /// Start background monitoring task
+    fn start_monitoring(self: Arc<Self>) -> tokio::task::JoinHandle<()>;
+
     /// Update environment state (for hardware implementations)
     fn update_environment(&self, state: EnvironmentState) -> Result<(), DeadMansSwitchError>;
 
@@ -232,57 +235,6 @@ impl SoftDeadMansSwitch {
         self.state.store(Self::encode_state(state), Ordering::SeqCst);
     }
 
-    /// Start background monitoring task
-    pub fn start_monitoring(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
-        let switch = self.clone();
-
-        tokio::spawn(async move {
-            let check_interval = switch.config.heartbeat_interval / 2;
-            let mut interval = tokio::time::interval(check_interval);
-
-            loop {
-                interval.tick().await;
-
-                if !switch.armed.load(Ordering::SeqCst) {
-                    continue;
-                }
-
-                let current_state = switch.state();
-
-                // Check heartbeat timeout
-                let elapsed = switch.time_since_heartbeat();
-                if elapsed > switch.config.heartbeat_timeout {
-                    match current_state {
-                        SwitchState::Armed => {
-                            warn!(
-                                "Heartbeat timeout! Last heartbeat was {:?} ago",
-                                elapsed
-                            );
-                            switch.set_state(SwitchState::GracePeriod);
-                        }
-                        SwitchState::GracePeriod => {
-                            if elapsed > switch.config.heartbeat_timeout + switch.config.grace_period
-                            {
-                                error!("Grace period expired! Triggering emergency!");
-                                switch.trigger_emergency().await;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Check environment
-                let env = switch.environment.read().await;
-                if let Some(anomaly) = env.has_anomaly(&switch.config) {
-                    warn!("Environmental anomaly detected: {}", anomaly);
-                    if current_state == SwitchState::Armed {
-                        switch.set_state(SwitchState::GracePeriod);
-                    }
-                }
-            }
-        })
-    }
-
     async fn trigger_emergency(&self) {
         self.set_state(SwitchState::Triggered);
         error!("EMERGENCY TRIGGERED - Executing emergency callbacks");
@@ -356,6 +308,56 @@ impl DeadMansSwitch for SoftDeadMansSwitch {
         }
 
         Ok(())
+    }
+
+    fn start_monitoring(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let switch = self.clone();
+
+        tokio::spawn(async move {
+            let check_interval = switch.config.heartbeat_interval / 2;
+            let mut interval = tokio::time::interval(check_interval);
+
+            loop {
+                interval.tick().await;
+
+                if !switch.armed.load(Ordering::SeqCst) {
+                    continue;
+                }
+
+                let current_state = switch.state();
+
+                // Check heartbeat timeout
+                let elapsed = switch.time_since_heartbeat();
+                if elapsed > switch.config.heartbeat_timeout {
+                    match current_state {
+                        SwitchState::Armed => {
+                            warn!(
+                                "Heartbeat timeout! Last heartbeat was {:?} ago",
+                                elapsed
+                            );
+                            switch.set_state(SwitchState::GracePeriod);
+                        }
+                        SwitchState::GracePeriod => {
+                            if elapsed > switch.config.heartbeat_timeout + switch.config.grace_period
+                            {
+                                error!("Grace period expired! Triggering emergency!");
+                                switch.trigger_emergency().await;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Check environment
+                let env = switch.environment.read().await;
+                if let Some(anomaly) = env.has_anomaly(&switch.config) {
+                    warn!("Environmental anomaly detected: {}", anomaly);
+                    if current_state == SwitchState::Armed {
+                        switch.set_state(SwitchState::GracePeriod);
+                    }
+                }
+            }
+        })
     }
 
     fn update_environment(&self, state: EnvironmentState) -> Result<(), DeadMansSwitchError> {

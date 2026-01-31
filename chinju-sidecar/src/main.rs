@@ -25,8 +25,10 @@ use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_server::AiGate
 use chinju_sidecar::services::{
     create_audit_system_with_restore, CredentialServiceImpl, FileStorage, GatewayService,
     HttpServerState, OpenAiClient, OpenAiClientConfig, PolicyEngine, SigningService,
-    StorageBackend, TokenService, start_http_server,
+    StorageBackend, TokenService, start_http_server, ContainmentConfig, SanitizerConfig, SanitizationMode,
 };
+use chinju_core::hardware::{create_dead_mans_switch, HardwareConfig, physical_kill_switch};
+use chinju_core::types::TrustLevel;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -145,22 +147,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // AI Gateway Service (integrates all services)
-    let gateway_service = if let Some(ref client) = openai_client {
-        GatewayService::with_openai_client(
-            token_service,
-            credential_service.clone(),
-            policy_engine,
-            audit_logger.clone(),
-            client.clone(),
-        ).await
-    } else {
-        GatewayService::with_audit_logger(
-            token_service,
-            credential_service.clone(),
-            policy_engine,
-            audit_logger.clone(),
-        ).await
+    // Initialize Hardware & Dead Man's Switch (C13)
+    let hardware_config = HardwareConfig::from_env().unwrap_or_else(|e| {
+        warn!("Failed to load hardware config: {}, using mock", e);
+        HardwareConfig::mock()
+    });
+    
+    let dead_mans_switch: Arc<dyn chinju_core::hardware::DeadMansSwitch> = match create_dead_mans_switch(&hardware_config) {
+        Ok(switch) => Arc::from(switch),
+        Err(e) => {
+            warn!("Failed to create Dead Man's Switch: {}, using soft fallback", e);
+            Arc::new(chinju_core::hardware::SoftDeadMansSwitch::default())
+        }
     };
+
+    // L4 Critical: Register physical kill switch
+    if hardware_config.security_level() == TrustLevel::HardwareCritical {
+        info!("SECURITY LEVEL: L4 CRITICAL - Physical Kill Switch Enabled");
+        dead_mans_switch.on_emergency(Arc::new(|| {
+            tokio::spawn(async {
+                physical_kill_switch::execute_physical_shutdown().await;
+            });
+        }));
+    }
+
+    // Configure Containment (C13)
+    let mut containment_config = ContainmentConfig::from_env();
+    
+    // L4 Critical: Force Analog Sanitization
+    if hardware_config.security_level() == TrustLevel::HardwareCritical {
+        info!("SECURITY LEVEL: L4 CRITICAL - Analog Sanitization Enabled");
+        containment_config.sanitization_mode = SanitizationMode::Strong;
+        containment_config.sanitizer_config.default_mode = SanitizationMode::Strong;
+    }
+
+    let gateway_service = GatewayService::with_containment(
+        token_service,
+        credential_service.clone(),
+        policy_engine,
+        Some(audit_logger.clone()),
+        openai_client.clone(),
+        containment_config,
+        dead_mans_switch,
+    ).await;
     info!("  Gateway Service initialized");
 
     // Server addresses

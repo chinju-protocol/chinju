@@ -6,6 +6,11 @@
 use crate::hardware::traits::{
     HardwareError, HardwareSecurityModule, ImmutableStorage, RandomSource,
 };
+use crate::hardware::dead_mans_switch::{
+    DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch,
+};
+#[cfg(all(feature = "tpm", target_os = "linux"))]
+use crate::hardware::tpm::{TpmConfig, TpmDeadMansSwitch};
 use crate::types::TrustLevel;
 
 /// HSM backend configuration
@@ -347,6 +352,34 @@ pub fn create_secure_execution(
             Ok(Box::new(NitroHsm::new(nitro_config)?))
         }
         _ => Err(HardwareError::NotSupported),
+    }
+}
+
+/// Create a Dead Man's Switch instance based on configuration
+pub fn create_dead_mans_switch(
+    config: &HardwareConfig,
+) -> Result<Box<dyn DeadMansSwitch>, HardwareError> {
+    match &config.hsm {
+        HsmBackend::Mock => {
+            Ok(Box::new(SoftDeadMansSwitch::default()))
+        }
+        #[cfg(all(feature = "tpm", target_os = "linux"))]
+        HsmBackend::Tpm {
+            interface,
+            host,
+            port,
+            device_path,
+        } => {
+            let tpm_config = match interface.as_str() {
+                "device" => TpmConfig::device(device_path),
+                _ => TpmConfig::socket(host, *port),
+            };
+            Ok(Box::new(TpmDeadMansSwitch::default_config(tpm_config)))
+        }
+        // Fallback to soft switch for other backends for now
+        _ => {
+            Ok(Box::new(SoftDeadMansSwitch::default()))
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 //! Service implementations
 
 pub mod audit;
+pub mod analog_sanitizer;
 pub mod capability_test;
 pub mod credential;
 pub mod extraction_deterrent;
@@ -21,6 +22,7 @@ pub use audit::{
     create_audit_system, create_audit_system_with_restore, AuditLogger, AuditPersister,
     FileStorage, StorageBackend,
 };
+pub use analog_sanitizer::AnalogSanitizer;
 pub use capability_test::{
     CapabilityTestManager, CapabilityTestSession, ChallengeGenerator, HumannessDetector,
     ResponseEvaluator,

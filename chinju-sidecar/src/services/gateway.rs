@@ -191,7 +191,7 @@ pub struct GatewayService {
     /// C13: Side channel blocker
     side_channel_blocker: Arc<SideChannelBlocker>,
     /// C13: Dead Man's Switch (physical safety mechanism)
-    dead_mans_switch: Arc<SoftDeadMansSwitch>,
+    dead_mans_switch: Arc<dyn DeadMansSwitch>,
     /// C13: Nitro Enclave Service (L3 secure execution)
     nitro_service: Option<Arc<RwLock<super::NitroService>>>,
 }
@@ -210,6 +210,7 @@ impl GatewayService {
             None,
             None,
             ContainmentConfig::disabled(),
+            Arc::new(SoftDeadMansSwitch::default()),
         ).await
     }
 
@@ -227,6 +228,7 @@ impl GatewayService {
             Some(audit_logger),
             None,
             ContainmentConfig::disabled(),
+            Arc::new(SoftDeadMansSwitch::default()),
         ).await
     }
 
@@ -245,6 +247,7 @@ impl GatewayService {
             Some(audit_logger),
             Some(openai_client),
             ContainmentConfig::production(),
+            Arc::new(SoftDeadMansSwitch::default()),
         ).await
     }
 
@@ -256,6 +259,7 @@ impl GatewayService {
         audit_logger: Option<Arc<AuditLogger>>,
         openai_client: Option<Arc<OpenAiClient>>,
         containment_config: ContainmentConfig,
+        dead_mans_switch: Arc<dyn DeadMansSwitch>,
     ) -> Self {
         let mode = if openai_client.is_some() {
             "OpenAI"
@@ -286,11 +290,6 @@ impl GatewayService {
             Arc::new(OutputSanitizer::with_config(containment_config.sanitizer_config.clone()));
         let side_channel_blocker =
             Arc::new(SideChannelBlocker::with_config(containment_config.side_channel_config.clone()));
-
-        // Initialize Dead Man's Switch
-        let dead_mans_switch = Arc::new(SoftDeadMansSwitch::new(
-            containment_config.dead_mans_switch_config.clone(),
-        ));
 
         // Arm and start monitoring if enabled
         if containment_config.enable_dead_mans_switch {
@@ -387,7 +386,7 @@ impl GatewayService {
     }
 
     /// Get Dead Man's Switch for external access (C13)
-    pub fn dead_mans_switch(&self) -> Arc<SoftDeadMansSwitch> {
+    pub fn dead_mans_switch(&self) -> Arc<dyn DeadMansSwitch> {
         Arc::clone(&self.dead_mans_switch)
     }
 
