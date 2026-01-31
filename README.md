@@ -45,7 +45,7 @@ CHINJUは、AI安全層を構成する12件の特許から成る。
 
 1. **概要を理解する**: このREADMEの[設計思想](#設計思想)と[アーキテクチャ概念図](#アーキテクチャ概念図)を読む
 2. **特許を選ぶ**: [特許一覧](#特許一覧)から興味のある技術を選ぶ
-3. **詳細を読む**: 各特許の明細書（`c1_*.md` 〜 `c9_*.md`）を読む
+3. **詳細を読む**: 各特許の明細書（`patents/ja/`）を読む
 4. **実装する**: `sample/spec/` 以下のプロトコル仕様を参考に実装する
 
 ### クイックリファレンス
@@ -396,7 +396,9 @@ E(t) = 0 → 強制停止（兵糧攻め完了）
 ```
 chinju/
 ├── README.md                 # 本ファイル
-├── c1_*.md 〜 c9_*.md        # 特許明細書（9件）
+├── patents/                  # 特許明細書
+│   ├── ja/                   # 日本語版（C1〜C13）
+│   └── en/                   # 英語版
 ├── chinju-core/              # コアライブラリ (Rust)
 │   └── src/hardware/
 │       ├── nitro/            # AWS Nitro Enclaves 統合
@@ -407,7 +409,8 @@ chinju/
 ├── protocol/                 # プロトコル定義 (protobuf, schema)
 ├── deploy/terraform/         # AWS インフラ設定
 ├── docs/                     # ドキュメント
-│   └── NITRO_ENCLAVES.md     # Nitro Enclaves 統合ガイド
+│   ├── NITRO_ENCLAVES.md     # Nitro Enclaves 統合ガイド
+│   └── C13_IMPLEMENTATION_GUIDE.md  # C13 実装ガイド
 ├── scripts/                  # 運用スクリプト
 └── sample/                   # 実装サンプル・仕様書
     ├── spec/                 # プロトコル仕様

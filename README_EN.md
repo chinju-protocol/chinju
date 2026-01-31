@@ -46,7 +46,7 @@ Software-only countermeasures (such as Constitutional AI) are insufficient. **A 
 
 1. **Understand the concept**: Read the [Design Philosophy](#design-philosophy) and [Architecture Overview](#architecture-overview)
 2. **Choose a patent**: Select a technology of interest from the [Patent List](#patent-list)
-3. **Read the details**: Review the patent specifications (`c1_*.md` to `c9_*.md`, English versions in `en/`)
+3. **Read the details**: Review the patent specifications (`patents/ja/` for Japanese, `patents/en/` for English)
 4. **Implement**: Use the protocol specifications in `sample/spec/` as reference
 
 ### Quick Reference
@@ -398,21 +398,25 @@ Timestamp inconsistency = Tampering detected
 chinju/
 ├── README.md                 # Japanese version
 ├── README_EN.md              # This file (English)
-├── c1_*.md 〜 c9_*.md        # Patent specifications (9 files, Japanese)
-├── en/                       # English translations
-│   └── c1_*.md 〜 c9_*.md    # Patent specifications (English)
+├── patents/                  # Patent specifications
+│   ├── ja/                   # Japanese (C1-C13)
+│   └── en/                   # English translations
+├── chinju-core/              # Core library (Rust)
+│   └── src/hardware/
+│       ├── nitro/            # AWS Nitro Enclaves integration
+│       ├── tpm/              # TPM 2.0 integration
+│       └── threshold/        # FROST threshold signatures
+├── chinju-sidecar/           # AI Gateway service
+├── chinju-enclave/           # Nitro Enclave application
+├── protocol/                 # Protocol definitions (protobuf, schema)
+├── deploy/terraform/         # AWS infrastructure
+├── docs/                     # Documentation
+│   ├── NITRO_ENCLAVES.md     # Nitro Enclaves integration guide
+│   └── C13_IMPLEMENTATION_GUIDE.md  # C13 implementation guide
+├── scripts/                  # Operation scripts
 └── sample/                   # Implementation samples & specifications
     ├── spec/                 # Protocol specifications
-    │   ├── 00_overview.md
-    │   ├── 01_c1_hcal.md 〜 09_c9_policy_pack.md
-    │   ├── CONFIG_SCHEMA.md
-    │   ├── ERROR_CODES.md
-    │   └── VERSIONING.md
     ├── hardware/             # Hardware implementation guide
-    │   ├── REQUIREMENTS.md
-    │   ├── SECURITY_LEVELS.md
-    │   ├── INTEGRATION_GUIDE.md
-    │   └── reference/        # OTP, HSM, TEE, QRNG details
     ├── traits/               # Abstraction interfaces
     └── extensions/           # Extensions
 ```
