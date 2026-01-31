@@ -99,5 +99,5 @@ All major AI providers can be customers, not competitors.
 
 ---
 
-**Contact**: CHINJU Community
+**Contact**: CHINJU Community (contact@chinju.org)
 **Repository**: github.com/chinju-protocol/chinju-core

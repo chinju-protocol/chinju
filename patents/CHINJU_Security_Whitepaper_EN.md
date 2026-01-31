@@ -217,6 +217,6 @@ Attacker must achieve ALL of the following simultaneously:
 Understanding unnecessary. Being able to stop it is sufficient.
 
 ---
-**Contact:** CHINJU Community
+**Contact:** CHINJU Community (contact@chinju.org)
 **Repository:** https://github.com/chinju-protocol/chinju-core
 **Charter:** [CHINJU Protocol Charter v1.0](../CHINJU_Charter_v1.0.md)

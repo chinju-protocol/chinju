@@ -212,6 +212,6 @@ AIの管理権限を分散し、独占を防ぐ技術群。
 理解不要。止められればよい。
 
 ---
-**Contact:** CHINJU Community
+**Contact:** CHINJU Community (contact@chinju.org)
 **Repository:** https://github.com/chinju-protocol/chinju-core
 **Charter:** [CHINJU Protocol Charter v1.0](../CHINJU_Charter_v1.0.md)
