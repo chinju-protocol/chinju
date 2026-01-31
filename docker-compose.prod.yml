@@ -1,0 +1,33 @@
+# CHINJU Protocol - Production Docker Compose Override
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file overrides development settings for production deployment.
+
+version: '3.8'
+
+services:
+  chinju-sidecar:
+    environment:
+      - RUST_LOG=info
+      # In production, set these via secrets or environment
+      # - OPENAI_API_KEY=sk-xxx
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

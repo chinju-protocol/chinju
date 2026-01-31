@@ -1,0 +1,26 @@
+# Environment variables (secrets - DO NOT COMMIT)
+.env
+.env.local
+.env.*.local
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Audit logs (local data)
+data/
+
+# Temporary files
+*.tmp
+*.log

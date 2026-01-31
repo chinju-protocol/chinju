@@ -1,0 +1,43 @@
+# CHINJU Protocol - Docker ignore file
+
+# Git
+.git
+.gitignore
+
+# Rust build artifacts
+target/
+**/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment files (secrets)
+.env
+.env.*
+*.env
+
+# Local data
+data/
+**/data/
+
+# Documentation
+*.md
+!README.md
+
+# Claude
+.claude/
+
+# Sample files
+sample/
+
+# Temporary
+*.tmp
+*.log
+*.bak
+
+# macOS
+.DS_Store

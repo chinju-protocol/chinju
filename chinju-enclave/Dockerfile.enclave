@@ -1,0 +1,51 @@
+# CHINJU Enclave Dockerfile
+#
+# This Dockerfile builds the Enclave image (EIF) for AWS Nitro Enclaves.
+# The image must be minimal as Enclaves have limited memory.
+#
+# Build:
+#   docker build -t chinju-enclave -f Dockerfile.enclave .
+#
+# Create EIF:
+#   nitro-cli build-enclave --docker-uri chinju-enclave:latest --output-file chinju-enclave.eif
+
+# Stage 1: Build
+FROM rust:1.84-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache musl-dev
+
+WORKDIR /build
+
+# Copy source
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+
+# Build release binary (optimized for size)
+RUN cargo build --release --target x86_64-unknown-linux-musl
+
+# Stage 2: Runtime (minimal)
+FROM alpine:3.19
+
+# Install only essential runtime dependencies
+RUN apk add --no-cache ca-certificates
+
+# Create non-root user
+RUN adduser -D -u 1000 enclave
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/chinju-enclave /app/chinju-enclave
+
+# Set ownership
+RUN chown -R enclave:enclave /app
+
+USER enclave
+
+# Enclave vsock port
+ENV ENCLAVE_PORT=5000
+ENV RUST_LOG=info
+
+# Entry point
+ENTRYPOINT ["/app/chinju-enclave"]

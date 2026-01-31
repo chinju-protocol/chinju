@@ -1,0 +1,38 @@
+# CHINJU Core - Test Dockerfile
+#
+# This Dockerfile builds a test environment for TPM integration tests.
+# It includes tss2 libraries required for TPM operations.
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.test.yml up chinju-tpm-test
+
+FROM rust:1.75-bookworm
+
+# Install dependencies
+# - libtss2-dev: TPM 2.0 TSS libraries
+# - pkg-config: For finding libraries
+# - curl: For health checks
+RUN apt-get update && \
+    apt-get install -y \
+        libtss2-dev \
+        pkg-config \
+        curl \
+        netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock* ./
+COPY chinju-core ./chinju-core
+COPY chinju-sidecar ./chinju-sidecar
+COPY protocol ./protocol
+
+# Build dependencies first (caching layer)
+RUN cargo fetch
+
+# Build with TPM feature to verify compilation
+RUN cargo build --features tpm -p chinju-core
+
+# Default command: run tests
+CMD ["cargo", "test", "--features", "tpm", "-p", "chinju-core", "--", "--ignored", "--test-threads=1", "--nocapture"]

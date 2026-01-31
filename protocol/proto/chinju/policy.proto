@@ -1,0 +1,322 @@
+// CHINJU Protocol - Policy Pack (C9)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.policy;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/policy";
+option java_package = "org.chinju.protocol.policy";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Policy Pack
+// =============================================================================
+
+// Policy Pack - Region/jurisdiction specific rule set
+message PolicyPack {
+  // Policy identifier (e.g., "policy.jp.v2")
+  chinju.common.Identifier policy_id = 1;
+
+  // Applicable jurisdictions
+  repeated Jurisdiction jurisdictions = 2;
+
+  // Rule set
+  repeated Rule rules = 3;
+
+  // Validity period
+  chinju.common.ValidityPeriod validity = 4;
+
+  // Threshold signature (multi-party approval)
+  chinju.common.ThresholdSignature signature = 5;
+
+  // Content hash for integrity verification
+  chinju.common.Hash content_hash = 6;
+
+  // Parent policy (for inheritance)
+  chinju.common.Identifier parent_policy_id = 7;
+
+  // Metadata
+  PolicyMetadata metadata = 8;
+}
+
+// =============================================================================
+// Jurisdiction
+// =============================================================================
+
+// Jurisdiction definition
+message Jurisdiction {
+  // ISO 3166-1 alpha-2 country code
+  string country_code = 1;
+
+  // Region/state (optional)
+  string region = 2;
+
+  // Special notes
+  string notes = 3;
+
+  // Regulatory frameworks that apply
+  repeated string frameworks = 4;
+}
+
+// =============================================================================
+// Rules
+// =============================================================================
+
+// Rule type
+enum RuleType {
+  RULE_TYPE_UNSPECIFIED = 0;
+  // Allow the action
+  ALLOW = 1;
+  // Deny the action
+  DENY = 2;
+  // Throttle/rate limit
+  THROTTLE = 3;
+  // Log for audit
+  AUDIT = 4;
+  // Transform content
+  TRANSFORM = 5;
+}
+
+// Single rule
+message Rule {
+  // Rule identifier
+  string rule_id = 1;
+
+  // Human-readable description
+  string description = 2;
+
+  // Rule type
+  RuleType rule_type = 3;
+
+  // Condition to match
+  Condition condition = 4;
+
+  // Action to take
+  Action action = 5;
+
+  // Priority (higher = more important)
+  int32 priority = 6;
+
+  // Whether rule is enabled
+  bool enabled = 7;
+
+  // Tags for categorization
+  repeated string tags = 8;
+}
+
+// =============================================================================
+// Conditions
+// =============================================================================
+
+// Condition type
+enum ConditionType {
+  CONDITION_TYPE_UNSPECIFIED = 0;
+  // Field matches value
+  FIELD_MATCH = 1;
+  // Content matches pattern
+  CONTENT_PATTERN = 2;
+  // LPT (complexity) threshold
+  LPT_THRESHOLD = 3;
+  // Token balance check
+  TOKEN_BALANCE = 4;
+  // Time range check
+  TIME_RANGE = 5;
+  // Composite (AND/OR of sub-conditions)
+  COMPOSITE = 6;
+  // Capability score check
+  CAPABILITY_CHECK = 7;
+}
+
+// Comparison operator
+enum Operator {
+  OPERATOR_UNSPECIFIED = 0;
+  EQUALS = 1;
+  NOT_EQUALS = 2;
+  GREATER_THAN = 3;
+  GREATER_THAN_OR_EQUALS = 4;
+  LESS_THAN = 5;
+  LESS_THAN_OR_EQUALS = 6;
+  CONTAINS = 7;
+  NOT_CONTAINS = 8;
+  MATCHES_REGEX = 9;
+  IN_LIST = 10;
+  NOT_IN_LIST = 11;
+  STARTS_WITH = 12;
+  ENDS_WITH = 13;
+}
+
+// Logical operator for composite conditions
+enum LogicalOperator {
+  LOGICAL_OPERATOR_UNSPECIFIED = 0;
+  AND = 1;
+  OR = 2;
+  NOT = 3;
+}
+
+// Condition definition
+message Condition {
+  // Condition type
+  ConditionType condition_type = 1;
+
+  // Field path (JSON Path notation)
+  string field_path = 2;
+
+  // Comparison operator
+  Operator operator = 3;
+
+  // Value to compare against
+  oneof value {
+    string string_value = 4;
+    int64 int_value = 5;
+    double double_value = 6;
+    bool bool_value = 7;
+    StringList string_list = 8;
+  }
+
+  // Sub-conditions (for COMPOSITE type)
+  repeated Condition sub_conditions = 9;
+
+  // Logical operator for sub-conditions
+  LogicalOperator logical_operator = 10;
+}
+
+// List of strings (for IN_LIST operator)
+message StringList {
+  repeated string values = 1;
+}
+
+// =============================================================================
+// Actions
+// =============================================================================
+
+// Action type
+enum ActionType {
+  ACTION_TYPE_UNSPECIFIED = 0;
+  // Allow request to pass
+  PASS = 1;
+  // Reject request
+  REJECT = 2;
+  // Apply rate limiting
+  RATE_LIMIT = 3;
+  // Log to audit trail
+  LOG = 4;
+  // Redact sensitive content
+  REDACT = 5;
+  // Add warning to response
+  WARN = 6;
+  // Escalate to human
+  ESCALATE = 7;
+  // Delay response
+  DELAY = 8;
+  // Require additional authentication
+  REQUIRE_AUTH = 9;
+}
+
+// Action definition
+message Action {
+  ActionType action_type = 1;
+
+  // Action parameters
+  map<string, string> parameters = 2;
+
+  // HTTP status code (for REJECT)
+  int32 http_status = 3;
+
+  // Error message (for REJECT)
+  string error_message = 4;
+}
+
+// =============================================================================
+// Policy Metadata
+// =============================================================================
+
+message PolicyMetadata {
+  // Human-readable name
+  string name = 1;
+
+  // Description
+  string description = 2;
+
+  // Author
+  string author = 3;
+
+  // Tags
+  repeated string tags = 4;
+
+  // Created timestamp
+  chinju.common.Timestamp created_at = 5;
+
+  // Last updated timestamp
+  chinju.common.Timestamp updated_at = 6;
+
+  // RFC document reference
+  string rfc_reference = 7;
+}
+
+// =============================================================================
+// Policy State
+// =============================================================================
+
+// Policy lifecycle state
+enum PolicyState {
+  POLICY_STATE_UNSPECIFIED = 0;
+  // Draft (not yet reviewed)
+  DRAFT = 1;
+  // Under review
+  REVIEW = 2;
+  // Approved (signed)
+  APPROVED = 3;
+  // Published (available)
+  PUBLISHED = 4;
+  // Active (in use)
+  ACTIVE = 5;
+  // Superseded by newer version
+  SUPERSEDED = 6;
+  // Expired
+  EXPIRED = 7;
+  // Emergency revoked
+  REVOKED = 8;
+}
+
+// Policy state transition event
+enum PolicyTransitionEvent {
+  POLICY_TRANSITION_UNSPECIFIED = 0;
+  TRANSITION_SUBMIT_FOR_REVIEW = 1;
+  TRANSITION_APPROVE = 2;
+  TRANSITION_REJECT = 3;
+  TRANSITION_PUBLISH = 4;
+  TRANSITION_ACTIVATE = 5;
+  TRANSITION_SUPERSEDE = 6;
+  TRANSITION_EXPIRE = 7;
+  TRANSITION_EMERGENCY_REVOKE = 8;
+}
+
+// =============================================================================
+// Policy Evaluation
+// =============================================================================
+
+// Decision type
+enum DecisionType {
+  DECISION_TYPE_UNSPECIFIED = 0;
+  DECISION_ALLOW = 1;
+  DECISION_DENY = 2;
+  DECISION_THROTTLE = 3;
+  DECISION_ESCALATE = 4;
+}
+
+// Policy decision
+message PolicyDecision {
+  DecisionType decision = 1;
+  string reason = 2;
+  repeated string matched_rules = 3;
+}
+
+// Matched rule info
+message MatchedRule {
+  string rule_id = 1;
+  int32 priority = 2;
+  ActionType action = 3;
+  string description = 4;
+}

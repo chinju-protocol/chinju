@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chinju.org/schemas/survival-token.schema.json",
+  "title": "Survival Token",
+  "description": "CHINJU Protocol Survival Token (C5) - AI cannot operate without external token supply",
+  "type": "object",
+  "required": ["token_id", "owner_id", "balance"],
+  "properties": {
+    "token_id": {
+      "$ref": "#/$defs/identifier",
+      "description": "Token identifier"
+    },
+    "owner_id": {
+      "$ref": "#/$defs/identifier",
+      "description": "Owner (AI system) identifier"
+    },
+    "balance": {
+      "$ref": "#/$defs/token_balance",
+      "description": "Current token balance"
+    },
+    "decay": {
+      "$ref": "#/$defs/decay_parameters",
+      "description": "Token decay configuration"
+    },
+    "grants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/token_grant"
+      },
+      "description": "Recent grant history"
+    },
+    "consumptions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/token_consumption"
+      },
+      "description": "Recent consumption history"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "object",
+      "required": ["namespace", "id"],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "token_balance": {
+      "type": "object",
+      "required": ["current", "capacity"],
+      "properties": {
+        "current": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Current token amount"
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum capacity"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "estimated_depletion": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Estimated time when tokens will deplete"
+        },
+        "consumption_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Current consumption rate per hour"
+        }
+      }
+    },
+    "decay_parameters": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": ["exponential", "linear", "step"],
+          "description": "Decay model type"
+        },
+        "half_life_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Half-life in seconds (for exponential)"
+        },
+        "decay_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Decay rate per second (for linear)"
+        },
+        "floor": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum floor (tokens never decay below this)"
+        },
+        "step_interval_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Step interval (for step decay)"
+        },
+        "step_amount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Amount to decay per step"
+        }
+      }
+    },
+    "token_grant": {
+      "type": "object",
+      "required": ["grant_id", "amount", "reason", "granted_at"],
+      "properties": {
+        "grant_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "amount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "alignment_contribution",
+            "periodic_replenishment",
+            "emergency_replenishment",
+            "testing",
+            "initial_allocation",
+            "reward"
+          ]
+        },
+        "granter_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "granted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "justification": {
+          "type": "string"
+        }
+      }
+    },
+    "token_consumption": {
+      "type": "object",
+      "required": ["consumption_id", "amount", "reason", "consumed_at"],
+      "properties": {
+        "consumption_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "amount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "request_processing",
+            "compute_usage",
+            "time_decay",
+            "penalty",
+            "storage_usage"
+          ]
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "consumed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "balance_after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

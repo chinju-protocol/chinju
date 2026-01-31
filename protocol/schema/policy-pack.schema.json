@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chinju.org/schemas/policy-pack.schema.json",
+  "title": "Policy Pack",
+  "description": "CHINJU Protocol Policy Pack (C9) - Region/jurisdiction specific rule set",
+  "type": "object",
+  "required": ["policy_id", "rules"],
+  "properties": {
+    "policy_id": {
+      "type": "string",
+      "pattern": "^policy\\.[a-z]{2}(\\.[a-z0-9_-]+)*\\.v[0-9]+$",
+      "description": "Policy identifier (e.g., 'policy.jp.v1', 'policy.eu.gdpr.v2')",
+      "examples": ["policy.jp.v1", "policy.eu.gdpr.v2", "policy.us.ca.ccpa.v1"]
+    },
+    "jurisdictions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/jurisdiction"
+      },
+      "description": "Applicable jurisdictions"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rule"
+      },
+      "minItems": 1,
+      "description": "Rule set"
+    },
+    "validity": {
+      "$ref": "#/$defs/validity_period"
+    },
+    "parent_policy_id": {
+      "type": "string",
+      "description": "Parent policy for inheritance"
+    },
+    "metadata": {
+      "$ref": "#/$defs/policy_metadata"
+    }
+  },
+  "$defs": {
+    "jurisdiction": {
+      "type": "object",
+      "required": ["country_code"],
+      "properties": {
+        "country_code": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "ISO 3166-1 alpha-2 country code"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region/state code"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Applicable regulatory frameworks",
+          "examples": [["GDPR", "AI Act"], ["CCPA", "CA-AI"]]
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["rule_id", "rule_type", "action"],
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$",
+          "description": "Unique rule identifier"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "rule_type": {
+          "type": "string",
+          "enum": ["allow", "deny", "throttle", "audit", "transform"],
+          "description": "Type of rule"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition",
+          "description": "Condition to match"
+        },
+        "action": {
+          "$ref": "#/$defs/action",
+          "description": "Action to take"
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0,
+          "description": "Priority (higher = more important)"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "properties": {
+        "condition_type": {
+          "type": "string",
+          "enum": [
+            "field_match",
+            "content_pattern",
+            "lpt_threshold",
+            "token_balance",
+            "time_range",
+            "composite",
+            "capability_check"
+          ]
+        },
+        "field_path": {
+          "type": "string",
+          "description": "JSON Path to field"
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equals",
+            "less_than",
+            "less_than_or_equals",
+            "contains",
+            "not_contains",
+            "matches_regex",
+            "in_list",
+            "not_in_list",
+            "starts_with",
+            "ends_with"
+          ]
+        },
+        "value": {
+          "description": "Value to compare against",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "sub_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "description": "Sub-conditions for composite"
+        },
+        "logical_operator": {
+          "type": "string",
+          "enum": ["and", "or", "not"]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["action_type"],
+      "properties": {
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "reject",
+            "rate_limit",
+            "log",
+            "redact",
+            "warn",
+            "escalate",
+            "delay",
+            "require_auth"
+          ]
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Action-specific parameters"
+        },
+        "http_status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599,
+          "description": "HTTP status code (for reject)"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Error message (for reject)"
+        }
+      }
+    },
+    "validity_period": {
+      "type": "object",
+      "properties": {
+        "not_before": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "not_after": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "policy_metadata": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rfc_reference": {
+          "type": "string",
+          "description": "RFC document reference"
+        }
+      }
+    }
+  }
+}

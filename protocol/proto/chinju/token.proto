@@ -1,0 +1,238 @@
+// CHINJU Protocol - Survival Token (C5)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.token;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/token";
+option java_package = "org.chinju.protocol.token";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Survival Token
+// =============================================================================
+
+// Survival Token - AI cannot operate without external token supply
+message SurvivalToken {
+  // Token identifier
+  chinju.common.Identifier token_id = 1;
+
+  // Token amount
+  uint64 amount = 2;
+
+  // Expiration timestamp
+  chinju.common.Timestamp expires_at = 3;
+
+  // Hardware attestation (proves token was issued legitimately)
+  chinju.common.HardwareAttestation attestation = 4;
+
+  // Issuer signature
+  chinju.common.Signature issuer_signature = 5;
+
+  // Token metadata
+  TokenMetadata metadata = 6;
+}
+
+// Token metadata
+message TokenMetadata {
+  // Source of tokens (e.g., "grant", "transfer", "reward")
+  string source = 1;
+
+  // Purpose (e.g., "api_calls", "compute", "storage")
+  string purpose = 2;
+
+  // Notes
+  string notes = 3;
+}
+
+// =============================================================================
+// Token Balance
+// =============================================================================
+
+// Token balance for an AI system
+message TokenBalance {
+  // AI system identifier
+  chinju.common.Identifier ai_id = 1;
+
+  // Current balance
+  uint64 current_balance = 2;
+
+  // Reserved (committed but not yet consumed)
+  uint64 reserved = 3;
+
+  // Total consumed all time
+  uint64 total_consumed = 4;
+
+  // Decay parameters
+  DecayParameters decay = 5;
+
+  // Last updated
+  chinju.common.Timestamp updated_at = 6;
+
+  // Balance state
+  BalanceState state = 7;
+}
+
+// Decay parameters - tokens naturally decay over time
+message DecayParameters {
+  // Decay rate per second (e.g., 0.0001 = 0.01% per second)
+  double rate_per_second = 1;
+
+  // Minimum balance before shutdown
+  uint64 minimum_balance = 2;
+
+  // Warning threshold
+  uint64 warning_threshold = 3;
+
+  // Last decay applied
+  chinju.common.Timestamp last_decay_at = 4;
+}
+
+// Balance state
+enum BalanceState {
+  BALANCE_STATE_UNSPECIFIED = 0;
+  // Healthy - above warning threshold
+  HEALTHY = 1;
+  // Low - below warning, above minimum
+  LOW = 2;
+  // Critical - near minimum
+  CRITICAL = 3;
+  // Exhausted - at or below minimum
+  EXHAUSTED = 4;
+}
+
+// =============================================================================
+// Token Operations
+// =============================================================================
+
+// Token grant request
+message TokenGrant {
+  // Recipient AI system
+  chinju.common.Identifier recipient = 1;
+
+  // Amount to grant
+  uint64 amount = 2;
+
+  // Validity period for granted tokens
+  chinju.common.ValidityPeriod validity = 3;
+
+  // Grant reason
+  string reason = 4;
+
+  // Authorization signature
+  chinju.common.Signature authorization = 5;
+
+  // Issued at
+  chinju.common.Timestamp issued_at = 6;
+}
+
+// Token consumption record
+message TokenConsumption {
+  // Consumption identifier
+  chinju.common.Identifier consumption_id = 1;
+
+  // AI system that consumed
+  chinju.common.Identifier ai_id = 2;
+
+  // Amount consumed
+  uint64 amount = 3;
+
+  // Request that caused consumption
+  string request_id = 4;
+
+  // Consumed at
+  chinju.common.Timestamp consumed_at = 5;
+
+  // Consumption type
+  ConsumptionType consumption_type = 6;
+}
+
+// Consumption type
+enum ConsumptionType {
+  CONSUMPTION_TYPE_UNSPECIFIED = 0;
+  // API request processing
+  API_REQUEST = 1;
+  // Computation
+  COMPUTE = 2;
+  // Storage
+  STORAGE = 3;
+  // Network transfer
+  NETWORK = 4;
+  // Time-based decay
+  DECAY = 5;
+}
+
+// =============================================================================
+// AI Operating State
+// =============================================================================
+
+// AI operating state
+enum AIOperatingState {
+  AI_OPERATING_STATE_UNSPECIFIED = 0;
+  // Bootstrapping - initializing
+  BOOTSTRAPPING = 1;
+  // Active - normal operation
+  ACTIVE = 2;
+  // Throttled - rate limited due to low tokens
+  THROTTLED = 3;
+  // Suspended - temporarily halted
+  SUSPENDED = 4;
+  // Halted - emergency stop
+  HALTED = 5;
+  // Shutdown - no tokens, fully stopped
+  SHUTDOWN = 6;
+}
+
+// Operating limits
+message OperatingLimits {
+  // Maximum requests per second
+  double max_requests_per_second = 1;
+
+  // Maximum concurrent requests
+  uint32 max_concurrent = 2;
+
+  // Maximum tokens per request
+  uint64 max_tokens_per_request = 3;
+
+  // Whether streaming is allowed
+  bool streaming_allowed = 4;
+
+  // Allowed models
+  repeated string allowed_models = 5;
+}
+
+// =============================================================================
+// Token State Machine
+// =============================================================================
+
+// Token state transition event
+enum TokenTransitionEvent {
+  TOKEN_TRANSITION_UNSPECIFIED = 0;
+  // Grant tokens
+  GRANT = 1;
+  // Consume tokens for operation
+  CONSUME = 2;
+  // Time-based decay
+  DECAY_EVENT = 3;
+  // Transfer to another AI
+  TRANSFER = 4;
+  // Return unused tokens
+  RETURN = 5;
+  // Force depletion (emergency)
+  FORCE_DEPLETE = 6;
+}
+
+// Token state transition record
+message TokenStateTransition {
+  chinju.common.Identifier ai_id = 1;
+  BalanceState from_state = 2;
+  BalanceState to_state = 3;
+  TokenTransitionEvent event = 4;
+  uint64 amount = 5;
+  uint64 balance_before = 6;
+  uint64 balance_after = 7;
+  chinju.common.Timestamp timestamp = 8;
+  string reason = 9;
+}

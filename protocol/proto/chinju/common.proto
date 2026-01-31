@@ -1,0 +1,165 @@
+// CHINJU Protocol - Common Types
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.common;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/common";
+option java_package = "org.chinju.protocol.common";
+option java_multiple_files = true;
+
+// =============================================================================
+// Timestamp
+// =============================================================================
+
+// UTC timestamp with nanosecond precision
+message Timestamp {
+  // Seconds since Unix epoch (1970-01-01T00:00:00Z)
+  int64 seconds = 1;
+  // Nanoseconds (0-999999999)
+  int32 nanos = 2;
+}
+
+// Validity period for credentials, tokens, and policies
+message ValidityPeriod {
+  Timestamp not_before = 1;
+  Timestamp not_after = 2;
+}
+
+// =============================================================================
+// Identifiers
+// =============================================================================
+
+// Universal identifier with namespace
+message Identifier {
+  // Namespace (e.g., "chinju", "user", "policy", "token")
+  string namespace = 1;
+  // Unique ID within namespace
+  string id = 2;
+  // Optional version number
+  uint64 version = 3;
+}
+
+// =============================================================================
+// Cryptographic Primitives
+// =============================================================================
+
+// Signature algorithm
+enum SignatureAlgorithm {
+  SIGNATURE_ALGORITHM_UNSPECIFIED = 0;
+  // Edwards-curve Digital Signature Algorithm (recommended)
+  ED25519 = 1;
+  // ECDSA with NIST P-256 curve
+  ECDSA_P256 = 2;
+  // ECDSA with NIST P-384 curve
+  ECDSA_P384 = 3;
+}
+
+// Digital signature
+message Signature {
+  SignatureAlgorithm algorithm = 1;
+  // Public key (32 bytes for Ed25519)
+  bytes public_key = 2;
+  // Signature value (64 bytes for Ed25519)
+  bytes signature = 3;
+  // When the signature was created
+  Timestamp signed_at = 4;
+  // Optional key identifier
+  string key_id = 5;
+}
+
+// Hash algorithm
+enum HashAlgorithm {
+  HASH_ALGORITHM_UNSPECIFIED = 0;
+  // SHA-3 with 256-bit output (recommended)
+  SHA3_256 = 1;
+  // SHA-3 with 512-bit output
+  SHA3_512 = 2;
+  // BLAKE3 (fast, secure)
+  BLAKE3 = 3;
+}
+
+// Hash value
+message Hash {
+  HashAlgorithm algorithm = 1;
+  // Hash value (32 bytes for SHA3-256)
+  bytes value = 2;
+}
+
+// Threshold signature (t-of-n)
+message ThresholdSignature {
+  // Required number of signatures (t)
+  uint32 threshold = 1;
+  // Total number of signers (n)
+  uint32 total = 2;
+  // Collected signatures
+  repeated Signature signatures = 3;
+}
+
+// Public key
+message PublicKey {
+  SignatureAlgorithm algorithm = 1;
+  bytes key_data = 2;
+  string key_id = 3;
+}
+
+// =============================================================================
+// Trust Levels
+// =============================================================================
+
+// Security/trust level
+enum TrustLevel {
+  TRUST_LEVEL_UNSPECIFIED = 0;
+  // L4: Critical infrastructure (HSM + QRNG + Data Diode)
+  HARDWARE_CRITICAL = 1;
+  // L3: Enterprise (HSM + TEE + TPM)
+  HARDWARE_ENTERPRISE = 2;
+  // L2: Standard (TPM + TEE)
+  HARDWARE_STANDARD = 3;
+  // L1: Basic (Software TPM / Secure Enclave)
+  SOFTWARE = 4;
+  // L0: Development/Test (Mock)
+  MOCK = 5;
+}
+
+// Hardware attestation report
+message HardwareAttestation {
+  TrustLevel trust_level = 1;
+  // Hardware type (e.g., "YubiHSM2", "Intel SGX", "TPM2.0")
+  string hardware_type = 2;
+  // Attestation data (format depends on hardware)
+  bytes attestation_data = 3;
+  // Manufacturer's signature
+  Signature manufacturer_signature = 4;
+  // When attestation was generated
+  Timestamp attested_at = 5;
+}
+
+// =============================================================================
+// Error Handling
+// =============================================================================
+
+// Severity level
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  INFO = 1;
+  WARNING = 2;
+  ERROR = 3;
+  CRITICAL = 4;
+}
+
+// Error detail
+message ErrorDetail {
+  // Error code (e.g., "CHINJU_E001")
+  string code = 1;
+  // Human-readable message
+  string message = 2;
+  // Additional metadata
+  map<string, string> metadata = 3;
+  // Suggested actions
+  repeated string suggestions = 4;
+  // Documentation URL
+  string documentation_url = 5;
+  // Severity
+  Severity severity = 6;
+}

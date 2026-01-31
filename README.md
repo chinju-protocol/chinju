@@ -397,18 +397,21 @@ E(t) = 0 → 強制停止（兵糧攻め完了）
 chinju/
 ├── README.md                 # 本ファイル
 ├── c1_*.md 〜 c9_*.md        # 特許明細書（9件）
+├── chinju-core/              # コアライブラリ (Rust)
+│   └── src/hardware/
+│       ├── nitro/            # AWS Nitro Enclaves 統合
+│       ├── tpm/              # TPM 2.0 統合
+│       └── threshold/        # FROST 閾値署名
+├── chinju-sidecar/           # AI Gateway サービス
+├── chinju-enclave/           # Nitro Enclave アプリケーション
+├── protocol/                 # プロトコル定義 (protobuf, schema)
+├── deploy/terraform/         # AWS インフラ設定
+├── docs/                     # ドキュメント
+│   └── NITRO_ENCLAVES.md     # Nitro Enclaves 統合ガイド
+├── scripts/                  # 運用スクリプト
 └── sample/                   # 実装サンプル・仕様書
     ├── spec/                 # プロトコル仕様
-    │   ├── 00_overview.md
-    │   ├── 01_c1_hcal.md 〜 09_c9_policy_pack.md
-    │   ├── CONFIG_SCHEMA.md
-    │   ├── ERROR_CODES.md
-    │   └── VERSIONING.md
     ├── hardware/             # ハードウェア実装ガイド
-    │   ├── REQUIREMENTS.md
-    │   ├── SECURITY_LEVELS.md
-    │   ├── INTEGRATION_GUIDE.md
-    │   └── reference/        # OTP, HSM, TEE, QRNG等の詳細
     ├── traits/               # 抽象化インターフェース
     └── extensions/           # 拡張機能
 ```
@@ -421,6 +424,12 @@ chinju/
 **A:** "Sidecar" パターンを採用しているため、既存のアプリケーションコードを変更する必要はありません。
 CHINJU Sidecar を OpenAI API 互換のプロキシとして配置し、アプリケーションの `base_url` を Sidecar に向けるだけで、透過的にガバナンス機能（監査、ポリシー適用、トークン制御）を利用できます。
 HSM等のハードウェアは「推奨」ですが、初期段階ではソフトウェアエミュレーション（SoftHSM）でも動作し、段階的にセキュリティ強度を上げられます。
+
+### Q: AWS Nitro Enclaves は対応していますか？
+**A:** はい、L3（Enterprise）レベルのセキュリティとして AWS Nitro Enclaves をサポートしています。
+Enclave 内で鍵管理・署名・データシールを行い、KMS との Attestation ベースのアクセス制御により、
+親インスタンスからも秘密鍵にアクセスできない構成を実現できます。
+詳細は [`docs/NITRO_ENCLAVES.md`](./docs/NITRO_ENCLAVES.md) を参照してください。
 
 ### Q: 企業がこのプロトコルを採用するメリット（インセンティブ）は何ですか？
 **A:** 技術的メリット（即座にガバナンス機能を導入可能）に加え、憲章第9条に基づく「防衛的特許戦略」があります。

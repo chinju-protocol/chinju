@@ -1,0 +1,168 @@
+// CHINJU Protocol - Token Service API
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.token;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/token";
+option java_package = "org.chinju.protocol.api.token";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+import "chinju/token.proto";
+
+// =============================================================================
+// Token Service
+// =============================================================================
+
+service TokenService {
+  // Get token balance
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+
+  // Consume tokens
+  rpc ConsumeToken(ConsumeTokenRequest) returns (ConsumeTokenResponse);
+
+  // Grant tokens
+  rpc GrantToken(GrantTokenRequest) returns (GrantTokenResponse);
+
+  // Get consumption history
+  rpc GetConsumptionHistory(GetConsumptionHistoryRequest) returns (GetConsumptionHistoryResponse);
+
+  // Watch balance changes
+  rpc WatchBalance(WatchBalanceRequest) returns (stream BalanceUpdate);
+
+  // Get depletion forecast
+  rpc GetDepletionForecast(GetDepletionForecastRequest) returns (GetDepletionForecastResponse);
+
+  // Get token metadata
+  rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse);
+
+  // Emergency replenish (requires threshold signature)
+  rpc EmergencyReplenish(EmergencyReplenishRequest) returns (EmergencyReplenishResponse);
+}
+
+// =============================================================================
+// Request/Response Messages
+// =============================================================================
+
+message GetBalanceRequest {
+  chinju.common.Identifier owner_id = 1;
+}
+
+message GetBalanceResponse {
+  chinju.token.TokenBalance balance = 1;
+  chinju.token.TokenBalanceState state = 2;
+  chinju.token.OperatingLimits current_limits = 3;
+}
+
+message ConsumeTokenRequest {
+  chinju.common.Identifier owner_id = 1;
+  uint64 amount = 2;
+  chinju.token.ConsumptionReason reason = 3;
+  // Idempotency key
+  string request_id = 4;
+  // Optional metadata
+  map<string, string> metadata = 5;
+}
+
+message ConsumeTokenResponse {
+  bool success = 1;
+  chinju.token.TokenBalance new_balance = 2;
+  chinju.common.ErrorDetail error = 3;
+  chinju.token.TokenConsumption consumption_record = 4;
+}
+
+message GrantTokenRequest {
+  chinju.common.Identifier owner_id = 1;
+  uint64 amount = 2;
+  chinju.token.GrantReason reason = 3;
+  chinju.common.Signature granter_signature = 4;
+  // Required for large grants
+  chinju.common.ThresholdSignature authorization = 5;
+  string justification = 6;
+}
+
+message GrantTokenResponse {
+  bool success = 1;
+  chinju.token.TokenBalance new_balance = 2;
+  chinju.token.TokenGrant grant_record = 3;
+  chinju.common.ErrorDetail error = 4;
+}
+
+message GetConsumptionHistoryRequest {
+  chinju.common.Identifier owner_id = 1;
+  chinju.common.Timestamp from = 2;
+  chinju.common.Timestamp to = 3;
+  uint32 limit = 4;
+  string page_token = 5;
+  // Filter by reason
+  repeated chinju.token.ConsumptionReason reason_filter = 6;
+}
+
+message GetConsumptionHistoryResponse {
+  repeated chinju.token.TokenConsumption consumptions = 1;
+  string next_page_token = 2;
+  // Aggregated stats
+  uint64 total_consumed = 3;
+  double average_rate = 4;
+}
+
+message WatchBalanceRequest {
+  chinju.common.Identifier owner_id = 1;
+  // Notify on state change only (not every update)
+  bool state_changes_only = 2;
+}
+
+enum BalanceChangeType {
+  BALANCE_CHANGE_TYPE_UNSPECIFIED = 0;
+  CONSUMPTION = 1;
+  GRANT = 2;
+  DECAY = 3;
+  ADJUSTMENT = 4;
+}
+
+message BalanceUpdate {
+  chinju.token.TokenBalance balance = 1;
+  chinju.token.TokenBalanceState state = 2;
+  BalanceChangeType change_type = 3;
+  uint64 change_amount = 4;
+  chinju.common.Timestamp timestamp = 5;
+  // Previous state (if changed)
+  chinju.token.TokenBalanceState previous_state = 6;
+}
+
+message GetDepletionForecastRequest {
+  chinju.common.Identifier owner_id = 1;
+  // Use this consumption rate instead of current
+  double override_consumption_rate = 2;
+}
+
+message GetDepletionForecastResponse {
+  double current_consumption_rate = 1;
+  chinju.common.Timestamp estimated_depletion = 2;
+  uint64 recommended_replenishment = 3;
+  // Time until each state threshold
+  map<string, int64> time_to_state = 4;
+}
+
+message GetTokenInfoRequest {
+  chinju.common.Identifier token_id = 1;
+}
+
+message GetTokenInfoResponse {
+  chinju.token.SurvivalToken token = 1;
+  chinju.token.AIOperatingState ai_state = 2;
+}
+
+message EmergencyReplenishRequest {
+  chinju.common.Identifier owner_id = 1;
+  uint64 amount = 2;
+  string reason = 3;
+  chinju.common.ThresholdSignature authorization = 4;
+}
+
+message EmergencyReplenishResponse {
+  bool success = 1;
+  chinju.token.TokenBalance new_balance = 2;
+  chinju.common.ErrorDetail error = 3;
+}

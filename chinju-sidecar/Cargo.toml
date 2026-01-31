@@ -1,0 +1,91 @@
+[package]
+name = "chinju-sidecar"
+version = "0.1.0"
+edition = "2021"
+authors = ["CHINJU Protocol Contributors"]
+description = "CHINJU Protocol Sidecar - AI Gateway and Policy Enforcement"
+license = "Apache-2.0"
+repository = "https://github.com/chinju-protocol/chinju-sidecar"
+
+[dependencies]
+# CHINJU Core (with FROST threshold signatures)
+chinju-core = { path = "../chinju-core", features = ["mock", "frost"] }
+
+[features]
+default = []
+# Enable Nitro Enclaves support (Linux only)
+# Build with: cargo build --features nitro
+nitro = []
+
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.0", features = ["v4", "v7", "serde"] }
+
+# Regex for policy pattern matching
+regex = "1.10"
+
+# P3: HTTP Server (OpenAI compatible)
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# P3: HTTP Client (OpenAI API)
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+
+# Streaming
+async-stream = "0.3"
+futures-util = "0.3"
+
+# Async trait
+async-trait = "0.1"
+
+# Environment
+dotenvy = "0.15"
+
+# P4: Audit - Hash
+sha2 = "0.10"
+hex = "0.4"
+
+# Tower
+tower = "0.4"
+
+# C13: Model Containment
+unicode-normalization = "0.1"
+dashmap = "6.0"
+rand = "0.8"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[[bin]]
+name = "chinju-sidecar"
+path = "src/main.rs"
+
+[[bin]]
+name = "chinju-cli"
+path = "src/bin/cli.rs"

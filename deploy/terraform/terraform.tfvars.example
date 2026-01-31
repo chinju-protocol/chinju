@@ -1,0 +1,37 @@
+# CHINJU Protocol - Terraform Variables
+#
+# Copy this file to terraform.tfvars and fill in your values.
+#
+# To get PCR values from your Enclave:
+#   nitro-cli describe-eif --eif-path chinju-enclave.eif
+#
+# Or from a running Enclave:
+#   nitro-cli describe-enclaves | jq '.[0].Measurements'
+
+# AWS Region
+aws_region = "ap-northeast-1"
+
+# Environment (dev, staging, prod)
+environment = "dev"
+
+# Enable attestation-based access control
+# Set to false for development/testing
+enable_attestation = false
+
+# PCR0: Enclave Image File (EIF) hash
+# This changes when you rebuild the Enclave image
+enclave_pcr0 = ""
+
+# PCR1: Kernel and bootstrap hash
+# This is typically the same for all Enclaves using the same base
+enclave_pcr1 = ""
+
+# PCR2: Application hash
+# This changes when your application code changes
+enclave_pcr2 = ""
+
+# Example production values (replace with your actual PCR values):
+# enable_attestation = true
+# enclave_pcr0 = "ea85ddf01145538bc79518181e304f926365a971625f4c32581c7d3e26b60c840000000000000000000000000000000000"
+# enclave_pcr1 = "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b932700000000000000000000000000000000"
+# enclave_pcr2 = "5fdad5964ebfa243bae2de4a86eb12c6ce6250a1bf44f26d6e3c01767173b08830000000000000000000000000000000"

@@ -1,0 +1,101 @@
+# CHINJU Protocol - Docker Compose Configuration
+#
+# Usage:
+#   Development: docker-compose up
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Environment variables:
+#   OPENAI_API_KEY - Required for real OpenAI API access (optional for mock mode)
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Software TPM 2.0 Emulator (swtpm) - Development/Testing only
+  # ==========================================================================
+  swtpm:
+    image: ghcr.io/tpm2-software/swtpm:v0.8.1
+    container_name: chinju-swtpm
+    command: |
+      swtpm socket
+        --tpmstate dir=/tpm
+        --ctrl type=tcp,port=2322
+        --server type=tcp,port=2321
+        --flags startup-clear
+        --log level=1
+    ports:
+      - "2321:2321"  # TPM command port
+      - "2322:2322"  # TPM control port
+    volumes:
+      - swtpm-state:/tpm
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2321"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - chinju-network
+
+  # ==========================================================================
+  # CHINJU Sidecar - AI Gateway
+  # ==========================================================================
+  chinju-sidecar:
+    build:
+      context: .
+      dockerfile: chinju-sidecar/Dockerfile
+    container_name: chinju-sidecar
+    ports:
+      - "50051:50051"  # gRPC
+      - "8080:8080"    # HTTP (OpenAI compatible)
+    environment:
+      - RUST_LOG=info,chinju_sidecar=debug
+      - CHINJU_GRPC_PORT=50051
+      - CHINJU_HTTP_PORT=8080
+      - CHINJU_AUDIT_PATH=/app/data/audit/audit.jsonl
+      # Optional: Set for real OpenAI API access
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      # C13 Model Containment
+      - CHINJU_C13_EXTRACTION_DETERRENT=${CHINJU_C13_EXTRACTION_DETERRENT:-true}
+      - CHINJU_C13_OUTPUT_SANITIZATION=${CHINJU_C13_OUTPUT_SANITIZATION:-true}
+      - CHINJU_C13_SIDE_CHANNEL_BLOCKING=${CHINJU_C13_SIDE_CHANNEL_BLOCKING:-true}
+      - CHINJU_C13_DEAD_MANS_SWITCH=${CHINJU_C13_DEAD_MANS_SWITCH:-true}
+      - CHINJU_C13_SANITIZATION_MODE=${CHINJU_C13_SANITIZATION_MODE:-Standard}
+      - CHINJU_C13_PARAPHRASE_ENABLED=${CHINJU_C13_PARAPHRASE_ENABLED:-false}
+      - CHINJU_C13_PARAPHRASE_MODEL=${CHINJU_C13_PARAPHRASE_MODEL:-gpt-4o-mini}
+      # Dead Man's Switch (Software)
+      - CHINJU_DMS_HEARTBEAT_INTERVAL=${CHINJU_DMS_HEARTBEAT_INTERVAL:-30}
+      - CHINJU_DMS_HEARTBEAT_TIMEOUT=${CHINJU_DMS_HEARTBEAT_TIMEOUT:-90}
+      - CHINJU_DMS_GRACE_PERIOD=${CHINJU_DMS_GRACE_PERIOD:-10}
+      # TPM 2.0 Configuration (Hardware Dead Man's Switch)
+      - TPM_INTERFACE=${TPM_INTERFACE:-socket}
+      - TPM_HOST=${TPM_HOST:-swtpm}
+      - TPM_PORT=${TPM_PORT:-2321}
+      - CHINJU_DMS_USE_TPM=${CHINJU_DMS_USE_TPM:-false}
+    volumes:
+      # Persist audit logs
+      - chinju-audit-data:/app/data/audit
+    depends_on:
+      swtpm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chinju-network
+
+networks:
+  chinju-network:
+    driver: bridge
+
+volumes:
+  chinju-audit-data:
+    driver: local
+  swtpm-state:
+    driver: local

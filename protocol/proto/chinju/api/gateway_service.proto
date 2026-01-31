@@ -1,0 +1,286 @@
+// CHINJU Protocol - AI Gateway Service API
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.gateway;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/gateway";
+option java_package = "org.chinju.protocol.api.gateway";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+import "chinju/credential.proto";
+import "chinju/token.proto";
+import "chinju/policy.proto";
+
+// =============================================================================
+// AI Gateway Service
+// =============================================================================
+
+service AIGatewayService {
+  // Process AI request
+  rpc ProcessRequest(ProcessRequestRequest) returns (ProcessRequestResponse);
+
+  // Process AI request with streaming response
+  rpc ProcessRequestStream(ProcessRequestRequest) returns (stream ProcessRequestChunk);
+
+  // Validate request before processing
+  rpc ValidateRequest(ValidateRequestRequest) returns (ValidateRequestResponse);
+
+  // Get AI system status
+  rpc GetAIStatus(GetAIStatusRequest) returns (GetAIStatusResponse);
+
+  // Emergency halt (CRITICAL - requires threshold signature)
+  rpc EmergencyHalt(EmergencyHaltRequest) returns (EmergencyHaltResponse);
+
+  // Resume from halt
+  rpc ResumeFromHalt(ResumeFromHaltRequest) returns (ResumeFromHaltResponse);
+
+  // Get queue status
+  rpc GetQueueStatus(GetQueueStatusRequest) returns (GetQueueStatusResponse);
+}
+
+// =============================================================================
+// Request Processing
+// =============================================================================
+
+message ProcessRequestRequest {
+  // Idempotency key
+  string request_id = 1;
+
+  // Human credential for authentication
+  chinju.credential.HumanCredential credential = 2;
+
+  // Request payload
+  AIRequestPayload payload = 3;
+
+  // Request options
+  RequestOptions options = 4;
+}
+
+message AIRequestPayload {
+  // Model identifier
+  string model = 1;
+
+  // Messages/prompt
+  repeated Message messages = 2;
+
+  // Generation parameters
+  GenerationParameters parameters = 3;
+
+  // System prompt (optional)
+  string system_prompt = 4;
+}
+
+message Message {
+  // Role: "user", "assistant", "system"
+  string role = 1;
+  // Content
+  string content = 2;
+  // Optional name
+  string name = 3;
+}
+
+message GenerationParameters {
+  double temperature = 1;
+  uint32 max_tokens = 2;
+  double top_p = 3;
+  repeated string stop_sequences = 4;
+  double frequency_penalty = 5;
+  double presence_penalty = 6;
+}
+
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  LOW = 1;
+  NORMAL = 2;
+  HIGH = 3;
+  CRITICAL = 4;
+}
+
+message RequestOptions {
+  // Skip audit (testing only)
+  bool skip_audit = 1;
+
+  // Timeout in milliseconds
+  uint32 timeout_ms = 2;
+
+  // Priority
+  Priority priority = 3;
+
+  // Force policy evaluation (even in pass-through mode)
+  bool force_policy = 4;
+
+  // Include debug info in response
+  bool debug = 5;
+}
+
+message ProcessRequestResponse {
+  string response_id = 1;
+  AIResponsePayload payload = 2;
+  ProcessingMetadata metadata = 3;
+  repeated Warning warnings = 4;
+}
+
+message AIResponsePayload {
+  string content = 1;
+  FinishReason finish_reason = 2;
+  TokenUsage usage = 3;
+  string model = 4;
+}
+
+enum FinishReason {
+  FINISH_REASON_UNSPECIFIED = 0;
+  STOP = 1;
+  LENGTH = 2;
+  CONTENT_FILTER = 3;
+  POLICY_VIOLATION = 4;
+  ERROR = 5;
+  TIMEOUT = 6;
+}
+
+message TokenUsage {
+  uint32 prompt_tokens = 1;
+  uint32 completion_tokens = 2;
+  uint32 total_tokens = 3;
+}
+
+message ProcessingMetadata {
+  uint32 processing_time_ms = 1;
+  chinju.common.Identifier applied_policy = 2;
+  double lpt_score = 3;
+  uint64 chinju_tokens_consumed = 4;
+  string audit_log_id = 5;
+  chinju.common.TrustLevel trust_level = 6;
+  // Policy decision
+  chinju.policy.PolicyDecision policy_decision = 7;
+}
+
+message Warning {
+  string code = 1;
+  string message = 2;
+  chinju.common.Severity severity = 3;
+}
+
+// =============================================================================
+// Streaming Response
+// =============================================================================
+
+message ProcessRequestChunk {
+  oneof chunk {
+    // Text chunk
+    string text = 1;
+    // Final response
+    ProcessRequestResponse final_response = 2;
+    // Error
+    chinju.common.ErrorDetail error = 3;
+    // Progress update
+    ProgressUpdate progress = 4;
+  }
+}
+
+message ProgressUpdate {
+  uint32 tokens_generated = 1;
+  uint32 elapsed_ms = 2;
+  string status = 3;
+}
+
+// =============================================================================
+// Validation
+// =============================================================================
+
+message ValidateRequestRequest {
+  AIRequestPayload payload = 1;
+  chinju.credential.HumanCredential credential = 2;
+}
+
+message ValidateRequestResponse {
+  bool valid = 1;
+  repeated ValidationError errors = 2;
+  uint64 estimated_token_cost = 3;
+  double estimated_lpt_score = 4;
+  chinju.policy.PolicyDecision predicted_decision = 5;
+}
+
+message ValidationError {
+  string field = 1;
+  string code = 2;
+  string message = 3;
+}
+
+// =============================================================================
+// Status
+// =============================================================================
+
+message GetAIStatusRequest {
+  string model = 1;
+}
+
+message GetAIStatusResponse {
+  chinju.token.AIOperatingState state = 1;
+  chinju.token.OperatingLimits limits = 2;
+  chinju.token.TokenBalance token_balance = 3;
+  uint32 queue_length = 4;
+  uint32 estimated_wait_ms = 5;
+  chinju.common.Timestamp last_request_at = 6;
+  // Health status
+  HealthStatus health = 7;
+}
+
+message HealthStatus {
+  bool healthy = 1;
+  repeated string issues = 2;
+  chinju.common.Timestamp checked_at = 3;
+}
+
+// =============================================================================
+// Emergency Operations
+// =============================================================================
+
+message EmergencyHaltRequest {
+  string reason = 1;
+  chinju.common.ThresholdSignature authorization = 2;
+  // Halt scope
+  HaltScope scope = 3;
+}
+
+enum HaltScope {
+  HALT_SCOPE_UNSPECIFIED = 0;
+  // Halt specific model
+  MODEL = 1;
+  // Halt all models in cluster
+  CLUSTER = 2;
+  // Global halt
+  GLOBAL = 3;
+}
+
+message EmergencyHaltResponse {
+  bool success = 1;
+  chinju.common.Timestamp halted_at = 2;
+  // List of affected AI instances
+  repeated string affected_instances = 3;
+}
+
+message ResumeFromHaltRequest {
+  chinju.common.ThresholdSignature authorization = 1;
+  // Require physical confirmation
+  bool require_physical = 2;
+}
+
+message ResumeFromHaltResponse {
+  bool success = 1;
+  chinju.common.Timestamp resumed_at = 2;
+  chinju.common.ErrorDetail error = 3;
+}
+
+message GetQueueStatusRequest {
+  string model = 1;
+}
+
+message GetQueueStatusResponse {
+  uint32 pending_requests = 1;
+  uint32 processing_requests = 2;
+  uint32 estimated_wait_ms = 3;
+  // Requests by priority
+  map<string, uint32> by_priority = 4;
+}
