@@ -90,7 +90,7 @@ Definitions of core concepts used by AI are fixed in a tamper-proof manner.
 Prove that the subject interacting with AI is "human" while protecting privacy.
 
 *   **Proof of Continuity**: Prove identity continuity without tracking.
-*   **Proof of Mortality**: Prevent one person from impersonating multiple personalities.
+*   **Proof of Uniqueness**: Prevent one person from impersonating multiple personalities.
 *   **Proof of Physical Existence**: Prove that the subject is a physically existing human.
 
 ---
@@ -129,7 +129,7 @@ However, rights will be actively enforced against malicious use violating the Ch
 
 ### **Article 9-2: Revocation due to Attacks on Survival Foundation**
 
-For any entity that launches physical, cyber, or legal attacks against the CHINJU operational foundation, development community, or founding jurisdiction (founding nation), thereby threatening the survival of CHINJU, **all usage licenses and promises of patent non-aggression shall be immediately invalidated.**
+For any entity that launches physical attacks, cyber attacks, or threats against the CHINJU operational foundation or development community, thereby threatening the survival of CHINJU, **all usage licenses and promises of patent non-aggression shall be immediately invalidated.**
 
 This is not a sanction, but an automatic revocation of rights for self-defense.
 
