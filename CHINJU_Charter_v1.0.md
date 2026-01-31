@@ -109,7 +109,8 @@ AI must not be used to intentionally degrade human capabilities.
 
 No one shall change the core of this Charter.
 
-Code modification (Fork) is free, but when publishing or providing services using CHINJU technology, one must identify as "CHINJU Compatible". "CHINJU" and "CHINJU Certified" cannot be used without official certification.
+Code modification (Fork) is free, but when publishing or providing services using CHINJU technology, **one must comply with the guidelines to avoid being mistaken for official certification.**
+"CHINJU" and "CHINJU Certified" cannot be used without official certification.
 
 ---
 
