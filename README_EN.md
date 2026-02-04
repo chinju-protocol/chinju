@@ -24,7 +24,7 @@
 
 ## Overview
 
-CHINJU consists of 12 patents forming an AI safety layer.
+CHINJU consists of 15 patents forming an AI safety layer.
 Based on the premise that "software alone cannot stop AI," it prevents AI runaway through **physical irreversibility** and **mathematical principles**.
 
 ---
@@ -90,6 +90,9 @@ Software-only countermeasures (such as Constitutional AI) are insufficient. **A 
 | **C10** | Concept Definition Immutability Proof System | Fixes definition hashes in OTP, physically prevents tampering | OTP, HSM |
 | **C11** | Large Language Model Reliability Maintenance System | Measures LLM Logical Phase Transition point, protects service on quality degradation | OTP, Resource Restriction |
 | **C12** | Human Subject Integrated Authentication System | Authenticates humans via identity (signature chains) and mortality (degradation patterns) | PUF, Sensors |
+| **C13** | AI Model Confinement System | Prevents physical/informational leakage, safely confines models | TEE, Data Diode |
+| **C14** | Inference System Multi-Dimensional Capability Evaluation System | Multi-dimensional capability limit evaluation via tokens, attention patterns, computation graphs | ZKP, BFT |
+| **C15** | AI Model Internal Value Representation Monitoring System | Monitors value neurons and RPE to detect reward hacking | Neural Activation Monitoring |
 
 ---
 
@@ -111,7 +114,9 @@ All patents are filed in Japan and are scheduled for PCT international applicati
 | C10 | Concept Definition Immutability Proof System and Semantic Tampering Prevention Method | Patent Pending (Japan App. No. 2026-015023) |
 | C11 | Large Language Model Reliability Maintenance System | Patent Pending (Japan App. No. 2026-015025) |
 | C12 | Human Subject Integrated Authentication System and Identity/Mortality Composite Proof Method | Patent Pending (Japan App. No. 2026-015024) |
-| C13 | AI Model Confinement System and Physical/Informational Leakage Prevention Method | Patent Pending (Japan App. No. 2026-015026) |
+| C13 | AI Model Confinement System and Physical/Informational Leakage Prevention Method | Patent Pending (Japan App. No. 2026-015027) |
+| C14 | Inference System Multi-Dimensional Capability Evaluation and Integrity Verification System | Patent Pending |
+| C15 | AI Model Internal Value Representation Monitoring System and Intent Estimation Method Based on Reward Prediction Error | Patent Pending |
 
 ## Architecture Overview
 
@@ -399,7 +404,7 @@ chinju/
 ├── README.md                 # Japanese version
 ├── README_EN.md              # This file (English)
 ├── patents/                  # Patent specifications
-│   ├── ja/                   # Japanese (C1-C13)
+│   ├── ja/                   # Japanese (C1-C15)
 │   └── en/                   # English translations
 ├── chinju-core/              # Core library (Rust)
 │   └── src/hardware/
@@ -465,7 +470,7 @@ This patent portfolio has been filed. **We will not enforce patent rights agains
 | Subject | Applicable |
 |:--|:--|
 | **Code & Documentation** | Apache License 2.0 (copyright) |
-| **CHINJU Patent Portfolio (C1-C12)** | Patent Policy (separate) |
+| **CHINJU Patent Portfolio (C1-C15)** | Patent Policy (separate) |
 
 Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 

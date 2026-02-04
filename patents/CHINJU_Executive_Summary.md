@@ -46,11 +46,12 @@ CHINJU addresses these challenges through **physics-based guarantees**:
 
 ## Patent Portfolio
 
-CHINJU is protected by **13 patents** covering:
+CHINJU is protected by **15 patents** covering:
 
 - **C1-C5**: Physical control mechanisms (hardware kill switches, survival tokens)
 - **C6-C9**: Governance and sovereignty (distributed authority, policy management)
 - **C10-C13**: Anti-manipulation (definition immutability, model confinement)
+- **C14-C15**: AI capability and motivation monitoring (multi-dimensional evaluation, reward system surveillance)
 
 ---
 
