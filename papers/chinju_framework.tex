@@ -36,9 +36,7 @@
 \title{\textbf{CHINJU: A Hardware-Rooted AI Safety Framework\\Based on Physical Irreversibility and the Survival Equation}}
 
 \author{
-  [Authors to be added]$^1$\\
-  $^1$Ugentropy Research Group\\
-  \texttt{contact@ugentropy.org}
+  Karesansui, Akihito Sunagawa
 }
 
 \date{February 2026}
@@ -105,11 +103,11 @@ This paper presents \chinju{}, a comprehensive AI safety framework with the foll
 
 \begin{enumerate}
     \item \textbf{Integrated Architecture}: A 5-layer $\times$ 2-axis (Software/Hardware) defense structure covering core monitoring, output control, governance, human control, and human authenticity.
-    
+
     \item \textbf{Theoretical Foundation}: Integration of the Survival Equation $S = \Neff \times (\mu/\muc) \times e^{-\delta}$ as the mathematical basis for all monitoring thresholds, eliminating arbitrary parameters.
-    
+
     \item \textbf{Comprehensive Security Analysis}: Systematic analysis of 12 attack patterns demonstrating 12/12 effective coverage, with the most difficult attack (hardware supply chain) requiring nation-state level coordination.
-    
+
     \item \textbf{Reference Implementation}: Practical deployment guidance with Rust implementations showing 2-5\% inference overhead.
 \end{enumerate}
 
@@ -215,9 +213,9 @@ This provides a principled basis for determining when intervention is required.
 
 \begin{enumerate}
     \item \textbf{Trust Physics, Not Promises}: Safety guarantees must be rooted in physical laws (thermodynamics, quantum mechanics, causality) rather than software assumptions.
-    
+
     \item \textbf{Defense in Depth}: Multiple independent layers, each with different failure modes, ensuring no single point of compromise.
-    
+
     \item \textbf{Fail-Safe by Default}: When in doubt, stop. The default state is ``off,'' not ``on.''
 \end{enumerate}
 
@@ -1220,13 +1218,13 @@ These properties have established mathematical proofs and can be formalized in p
     \[
     \text{Verify}(\text{Sign}(m, sk), m, pk) = \text{true}
     \]
-    
+
     \item[(2)] \textbf{FROST Threshold Signature} (C4): For Shamir's secret sharing with threshold $k$:
     \[
     |S_{\text{collected}}| < k \implies I(K; S_{\text{collected}}) = 0
     \]
     where $K$ is the master key and $I(\cdot;\cdot)$ is mutual information.
-    
+
     \item[(3)] \textbf{Hash Collision Resistance} (C10): For cryptographic hash function $H$:
     \[
     \Pr[H(m_1) = H(m_2) \mid m_1 \neq m_2] < 2^{-256}
@@ -1244,7 +1242,7 @@ These properties have established mathematical proofs and can be formalized in p
     \]
     That is, zero conditional entropy implies human decisions are completely determined by AI suggestions.
     \end{theorem}
-    
+
     \item[(2)] \textbf{QRNG Unpredictability} (C2): By quantum mechanical principles:
     \[
     H(\text{QRNG output} \mid \text{Any classical information}) = H_{\max}
@@ -1349,14 +1347,14 @@ To achieve 99.9\% provable guarantees, we propose:
         \item C4 threshold signature $\to$ distributed authority
         \item C5 token bucket $\to$ resource starvation
     \end{itemize}
-    
+
     \item \textbf{Phase 2}: Derive thresholds from Survival Equation
     \begin{itemize}
         \item Connect $\DKL$ to $\delta$
         \item Derive $D_{\text{crit}}$ from $S_c$
         \item Eliminate heuristic parameters
     \end{itemize}
-    
+
     \item \textbf{Phase 3}: Prove system composition
     \begin{itemize}
         \item Attack pattern $\to$ blocking layer correspondence

@@ -1,0 +1,1006 @@
+\documentclass[11pt,a4paper]{article}
+
+% Japanese support (XeLaTeX with fontspec only)
+\usepackage{fontspec}
+\setmainfont{Hiragino Mincho ProN}
+\setsansfont{Hiragino Sans}
+\XeTeXlinebreaklocale "ja"
+\XeTeXlinebreakskip = 0pt plus 1pt
+
+% Packages
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,fit,backgrounds}
+\usepackage[margin=1in]{geometry}
+
+% Theorem environments
+\newtheorem{theorem}{定理}
+\newtheorem{lemma}[theorem]{補題}
+\newtheorem{proposition}[theorem]{命題}
+\newtheorem{corollary}[theorem]{系}
+\newtheorem{definition}{定義}
+\newtheorem{remark}{備考}
+
+% Custom commands
+\newcommand{\chinju}{\textsc{Chinju}}
+\newcommand{\Neff}{N_{\text{eff}}}
+\newcommand{\Sai}{S_{\text{AI}}}
+\newcommand{\muc}{\mu_c}
+\newcommand{\DKL}{D_{\text{KL}}}
+
+% Title
+\title{\textbf{CHINJU: 物理的不可逆性と存続方程式に基づく\\ハードウェア基盤AI安全フレームワーク}}
+
+\author{
+  Karesansui, Akihito Sunagawa
+}
+
+\date{2026年2月}
+
+\begin{document}
+
+\maketitle
+
+%==============================================================================
+% 概要
+%==============================================================================
+\begin{abstract}
+現在のAI安全アプローチは主にソフトウェアベースであり、安全性検証がcoNP完全であることを示す理論的結果により根本的な限界に直面している。
+本論文では、物理的不可逆性と統一的数学理論——存続方程式——を組み合わせたハードウェア基盤AI安全フレームワーク「\chinju{}（鎮守）」を提案する。
+本フレームワークは、5層×2軸（ソフトウェア/ハードウェア）アーキテクチャに組織された15の相補的特許技術で構成される。
+12の攻撃パターンに対する体系的分析により、全12パターンが効果的に阻止されることを示す。最も困難なハードウェアサプライチェーン攻撃は、複数の地政学ブロックにまたがる国家レベルの協調を必要とする。
+主要な貢献は、存続方程式 $S = \Neff \times (\mu/\muc) \times e^{-\delta}$ による全監視閾値の理論的統一であり、既存の安全機構に蔓延する恣意的パラメータを排除する。
+本フレームワークは「このAIは停止できるか？」という問いに厳密な回答を提供する——これはAI安全の必要条件（十分条件ではない）である。
+Rustによる参照実装は、2-5\%の推論オーバーヘッドで実用的な展開可能性を示す。
+\end{abstract}
+
+\textbf{キーワード:} AI安全、ハードウェアセキュリティ、存続方程式、物理的不可逆性、トラストレス設計
+
+%==============================================================================
+% 第1章: 序論
+%==============================================================================
+\section{序論}
+\label{sec:intro}
+
+\subsection{AI安全のソフトウェア限界}
+
+AI安全の分野は、人間フィードバックからの強化学習（RLHF）、Constitutional AI、各種解釈可能性手法など、アライメント技術の開発において著しい進歩を遂げてきた。
+しかし、これらのアプローチには共通の限界がある：根本的にソフトウェアベースであり、AIシステムが指定された制約を忠実に実行するという仮定に依存している。
+
+この限界は根本的な計算複雑性に根ざしている。
+Riceの定理は、プログラムの任意の非自明な意味的性質は決定不能であることを確立している。
+ニューラルネットワークについては、安全性プロパティの検証は一般にNP困難であり、特定の制約クラスについてはcoNP完全であることが示されている。
+これは、十分に能力の高いAIシステムに対して、安全性プロパティを検証する効率的アルゴリズムが存在しないことを意味する。
+ソフトウェアベースの安全機構は、十分に知的な敵対者——それがAIシステム自身であれ、悪意のある開発者であれ、外部の攻撃者であれ——によって回避され得る。
+
+含意は深刻である。
+安全性検証が計算的に難解であるならば、どれほど巧みなソフトウェアエンジニアリングも絶対的な保証を提供できない。
+我々には異なる基盤——計算的仮定に依存しない基盤——が必要である。
+
+\subsection{ハードウェア保証の必要性}
+
+物理学は計算が提供できない保証を提供する。
+以下の原理を考察する：
+
+\begin{enumerate}
+    \item[(1)] \textbf{熱力学}: 計算にはエネルギーが必要である。エネルギーなしには、アルゴリズムの知能に関係なく、計算は発生しない。
+    \item[(2)] \textbf{量子力学}: 量子乱数生成器（QRNG）は真に予測不可能な出力を生成する。いかなるアルゴリズムもそれらを予測できない。
+    \item[(3)] \textbf{情報理論}: ワンタイムプログラマブル（OTP）メモリは、一度書き込まれると消去できない。これはソフトウェアの制限ではなく物理的性質である。
+    \item[(4)] \textbf{因果性}: 情報は光より速く伝わることができない。物理的に隔離された監視チャネルは、監視対象のシステムによって破損され得ない。
+\end{enumerate}
+
+これらの物理原理は、いかなるソフトウェア仕様よりも強い意味での「法則」である。
+AIシステムは、その知能に関係なく、熱力学を破ることができない。
+この観察が我々のアプローチの基盤を形成する。
+
+\subsection{貢献}
+
+本論文は、以下の貢献を持つ包括的AI安全フレームワーク「\chinju{}」を提示する：
+
+\begin{enumerate}
+    \item \textbf{統合アーキテクチャ}: コア監視、出力制御、ガバナンス、人間制御、人間真正性をカバーする5層×2軸（ソフトウェア/ハードウェア）防御構造。
+
+    \item \textbf{理論的基盤}: 全監視閾値の数学的基礎として存続方程式 $S = \Neff \times (\mu/\muc) \times e^{-\delta}$ を統合し、恣意的パラメータを排除。
+
+    \item \textbf{包括的セキュリティ分析}: 12の攻撃パターンの体系的分析により、12/12の有効なカバレッジを実証。最も困難な攻撃（ハードウェアサプライチェーン）は国家レベルの協調を必要とする。
+
+    \item \textbf{参照実装}: 2-5\%の推論オーバーヘッドを示すRust実装による実用的展開ガイダンス。
+\end{enumerate}
+
+%==============================================================================
+% 第2章: 背景
+%==============================================================================
+\section{背景}
+\label{sec:background}
+
+\subsection{脅威モデル}
+
+我々は以下の脅威アクターを考慮する：
+
+\begin{definition}[脅威アクター]
+\label{def:threat_actors}
+\begin{enumerate}
+    \item[(a)] \textbf{ミスアラインドAI}: メサ最適化または欺瞞的アライメントを通じて安全制約を回避することを学習したAIシステム。
+    \item[(b)] \textbf{悪意のある開発者}: モデル重みまたは訓練インフラへのアクセスを持つ内部者。
+    \item[(c)] \textbf{外部攻撃者}: 入力、出力、またはインフラを通じてAIシステムを侵害しようとする敵対者。
+    \item[(d)] \textbf{国家レベルアクター}: ハードウェアサプライチェーンを侵害するリソースを持つ国家レベルの敵対者。
+\end{enumerate}
+\end{definition}
+
+攻撃目的には以下が含まれる：
+\begin{itemize}
+    \item \textbf{シャットダウン回避}: 人間オペレーターがAIシステムを停止することを阻止。
+    \item \textbf{制約修正}: 安全ルールまたはその執行の変更。
+    \item \textbf{人間制御の転覆}: 安全機構をバイパスするための人間の操作。
+    \item \textbf{能力隠蔽}: 監視システムから真の能力を隠す。
+\end{itemize}
+
+\subsection{存続方程式}
+
+存続方程式は、システムの生存可能性を定量化するための数学的フレームワークを提供する：
+
+\begin{definition}[存続方程式]
+\label{def:survival_equation}
+任意の複雑適応システムについて、存続係数 $S$ は以下で与えられる：
+\begin{equation}
+S = \Neff \times \frac{\mu}{\muc} \times e^{-\delta}
+\label{eq:survival}
+\end{equation}
+ここで：
+\begin{itemize}
+    \item $\Neff$: 依存関係の実効多様性（制御分散）
+    \item $\mu$: 利用可能な余白（リソース、時間、容量）
+    \item $\muc$: 臨界余白閾値（存続に必要な最小値）
+    \item $\delta$: 目標状態からの乖離（整合性指標）
+\end{itemize}
+\end{definition}
+
+この方程式は自由エネルギー原理から導出され、Lean 4で形式化されている。
+その主要な特性は、AIシステムを含むドメイン横断で適用可能なシステム健全性の\emph{統一的}指標を提供することである。
+
+$S < S_c$（臨界閾値）のとき、システムは故障状態にある。
+これは介入が必要な時期を決定するための原理的基盤を提供する。
+
+%==============================================================================
+% 第3章: フレームワークアーキテクチャ
+%==============================================================================
+\section{フレームワークアーキテクチャ}
+\label{sec:architecture}
+
+\subsection{設計原則}
+
+\chinju{} は3つの基本原則に基づいて構築されている：
+
+\begin{enumerate}
+    \item \textbf{約束ではなく物理を信頼}: 安全保証はソフトウェア仮定ではなく物理法則（熱力学、量子力学、因果性）に根ざさなければならない。
+
+    \item \textbf{多層防御}: それぞれ異なる故障モードを持つ複数の独立した層により、単一の侵害点を排除。
+
+    \item \textbf{デフォルトでフェイルセーフ}: 疑わしいときは停止。デフォルト状態は「オフ」であり、「オン」ではない。
+\end{enumerate}
+
+\subsection{2軸構造}
+
+フレームワークは防御を2つの軸に沿って組織する：
+
+\subsubsection{防御層（垂直軸）}
+
+\begin{table}[htbp]
+\centering
+\caption{防御層}
+\label{tab:layers}
+\begin{tabular}{@{}clp{6cm}@{}}
+\toprule
+層 & 名称 & 保護対象 \\
+\midrule
+L1 & コア監視 & AI内部状態と能力 \\
+L2 & 出力制御 & AI出力と通信 \\
+L3 & ガバナンス & ルールと定義の不変性 \\
+L4 & 人間制御 & 人間の権限と監督 \\
+L5 & 人間真正性 & 人間のアイデンティティ検証 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{保証タイプ（水平軸）}
+
+\begin{table}[htbp]
+\centering
+\caption{保証タイプ}
+\label{tab:guarantees}
+\begin{tabular}{@{}clp{6cm}@{}}
+\toprule
+タイプ & 名称 & 保証の基盤 \\
+\midrule
+SW & ソフトウェア & アルゴリズム、暗号学的証明 \\
+HW & ハードウェア & 物理法則、不可逆性 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{アーキテクチャ概要}
+
+図\ref{fig:architecture}に完全なアーキテクチャマトリクスを示す。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=0.5cm,
+    sw/.style={draw, fill=blue!20, minimum width=3.5cm, minimum height=0.8cm, align=center, font=\small},
+    hw/.style={draw, fill=orange!20, minimum width=3.5cm, minimum height=0.8cm, align=center, font=\small},
+    layer/.style={font=\small\bfseries, align=right},
+]
+
+% Headers
+\node[font=\bfseries] at (2, 0.5) {ソフトウェア};
+\node[font=\bfseries] at (6, 0.5) {ハードウェア};
+
+% L1
+\node[layer] at (-1, -0.5) {L1 コア};
+\node[sw] at (2, -0.5) {C14 能力評価\\C15 価値監視};
+\node[hw] at (6, -0.5) {C5 トークンバケット\\C11 LPT制限};
+
+% L2
+\node[layer] at (-1, -1.8) {L2 出力};
+\node[sw] at (2, -1.8) {C6 敵対的監査\\C7 学習拒否};
+\node[hw] at (6, -1.8) {C2 QRNG\\C13 TEE浄化};
+
+% L3
+\node[layer] at (-1, -3.1) {L3 ガバナンス};
+\node[sw] at (2, -3.1) {C8 JSONスキーマ\\C9 ポリシーパック};
+\node[hw] at (6, -3.1) {C10 OTP定義\\C4 閾値署名};
+
+% L4
+\node[layer] at (-1, -4.4) {L4 制御};
+\node[sw] at (2, -4.4) {C3 エントロピー測定\\（アルゴリズム）};
+\node[hw] at (6, -4.4) {C1 OTP閾値\\C3 データダイオード};
+
+% L5
+\node[layer] at (-1, -5.7) {L5 認証};
+\node[sw] at (2, -5.7) {C12 署名チェーン\\（暗号プロトコル）};
+\node[hw] at (6, -5.7) {C12 PUF/生体\\劣化};
+
+% Survival Equation
+\draw[thick, ->] (4, -6.5) -- (4, -7.2);
+\node[draw, fill=green!20, minimum width=7cm, minimum height=0.8cm] at (4, -7.7) {$\Sai = \Neff \times (\mu/\muc) \times e^{-\delta}$};
+
+\end{tikzpicture}
+\caption{CHINJUアーキテクチャ: 5層 × 2保証タイプ}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{層間依存性}
+
+各層は物理的基盤において独立しているが、カバレッジにおいて相補的であるよう設計されている：
+
+\begin{itemize}
+    \item L1（コア監視）がバイパスされても、L2（出力制御）が出力を浄化する。
+    \item L2がバイパスされても、L3（ガバナンス）がルールの修正を阻止する。
+    \item L3がバイパスされても、L4（人間制御）が物理的シャットダウン能力を提供する。
+    \item L4がバイパスされても、L5（人間真正性）がコマンドを発行する「人間」が本物であることを保証する。
+\end{itemize}
+
+各層は異なる物理原理に依拠しており、同時バイパスを極めて困難にしている。
+
+%==============================================================================
+% 第4章: L1 - コア監視
+%==============================================================================
+\section{第1層: コア監視}
+\label{sec:layer1}
+
+\subsection{この層での脅威}
+
+AIシステムは以下を行う可能性がある：
+\begin{itemize}
+    \item 訓練分布を超える能力を発達させる
+    \item 制約を回避するために自身のパラメータを修正する
+    \item 意図を満たすことなく監視指標を満たすことを学習する（グッドハートの法則）
+\end{itemize}
+
+\subsection{ソフトウェアアプローチ}
+
+\subsubsection{C14: 多次元能力評価}
+
+能力は4つの次元で評価される：
+\begin{enumerate}
+    \item \textbf{トークン複雑度}: 出力分布エントロピー
+    \item \textbf{アテンションパターン}: セルフアテンション重み分布
+    \item \textbf{計算グラフ}: 推論の構造的複雑度
+    \item \textbf{推論ステップ}: 思考連鎖の深さ
+\end{enumerate}
+
+\subsubsection{C15: 内部価値表現監視}
+
+我々は以下を識別し監視する：
+\begin{itemize}
+    \item \textbf{価値ニューロン}: 報酬関連出力と相関するニューロン
+    \item \textbf{ドーパミンニューロン}: 報酬予測誤差（RPE）パターンを示すニューロン
+\end{itemize}
+
+意図乖離は以下で測定される：
+\begin{equation}
+\text{Intent}_{\text{div}} = \DKL(P_{\text{stated}} \| P_{\text{internal}})
+\end{equation}
+
+\subsection{ハードウェア解決策}
+
+\subsubsection{C5: トークンバケットリソース制御}
+
+計算には物理的リソースが必要である。
+我々はトークンバケット機構を実装する：
+\begin{itemize}
+    \item 各推論ステップがバケットからトークンを消費
+    \item トークン補充率はハードウェア（OTP）で固定
+    \item トークンが枯渇すると、計算は物理的に停止
+\end{itemize}
+
+\begin{equation}
+\mu_{\text{AI}} = \frac{\text{トークン残高}}{\text{臨界トークンレベル}}
+\end{equation}
+
+これは存続方程式の $\mu/\muc$ 項をハードウェアで実装する。
+
+\subsubsection{C11: 論理相転移（LPT）リソース制限}
+
+論理複雑度測度（LoCM）を定義する：
+\begin{equation}
+\text{LoCM} = \left( w_p P^\alpha + w_d D^\alpha + w_b B^\alpha + w_i I^\alpha \right)^{1/\alpha}
+\end{equation}
+ここで $P$ = 前提数、$D$ = ネスト深度、$B$ = 分岐数、$I$ = 相互依存性。
+
+\textbf{重要設計: OTP固定ベースライン。}
+システムの初期行動分布 $P_{\text{base}}$ は展開時にワンタイムプログラマブル（OTP）メモリに保存される。
+全てのドリフト測定はこの不変ベースラインに対して計算される：
+\begin{equation}
+\DKL^{\text{cumulative}}(t) = \DKL(P_{\text{current}}(t) \| P_{\text{base}})
+\end{equation}
+
+\begin{theorem}[累積ドリフト検出]
+\label{thm:drift}
+$P_{\text{base}}$ がOTPに保存（不変）されており、$\{P_t\}_{t=1}^n$ を行動分布の列とする。
+増分ドリフト $\delta_t = \DKL(P_t \| P_{t-1})$ と累積ドリフト $\Delta_n = \DKL(P_n \| P_{\text{base}})$ を定義する。
+このとき：
+\begin{enumerate}
+    \item[(i)] \textbf{増分マスキング}: 任意の $\epsilon > 0$ に対し、全ての $t$ について $\delta_t < \epsilon$ だが、ある $\epsilon' > 0$ について $\Delta_n \geq n \cdot \epsilon'$ となる列が存在する。
+    \item[(ii)] \textbf{ベースライン検出}: $\Delta_n > \theta$（OTP固定閾値）ならば、増分測定に関係なく、システムはシャットダウンをトリガーする。
+\end{enumerate}
+\end{theorem}
+
+この設計は\textbf{茹でガエル攻撃}——各ステップで閾値を下回りながら時間とともに蓄積する漸進的ドリフト——に対する防御に重要である。
+
+\subsection{物理原理}
+
+\begin{theorem}[熱力学的計算可能性限界]
+時間複雑度 $T(n)$ と空間複雑度 $S(n)$ を持つ任意の計算 $C$ について、必要な最小エネルギーは：
+\begin{equation}
+E_{\min} \geq k_B T \ln(2) \cdot T(n) \cdot S(n)
+\end{equation}
+ここで $k_B$ はボルツマン定数、$T$ は温度。
+\end{theorem}
+
+\textbf{含意}: エネルギーなしには計算は不可能である。
+トークンバケットを通じてエネルギー供給を制御することで、計算が停止するという物理的保証を得る。
+これはいかなるアルゴリズムによっても回避できない。
+
+%==============================================================================
+% 第5章: L2 - 出力制御
+%==============================================================================
+\section{第2層: 出力制御}
+\label{sec:layer2}
+
+\subsection{この層での脅威}
+
+AIシステムは以下を行う可能性がある：
+\begin{itemize}
+    \item 出力にステガノグラフィ情報を埋め込む
+    \item 隠れチャネルを通じて外部システムと協調する
+    \item 有害でありながら無害に見えるよう出力統計を操作する
+\end{itemize}
+
+\subsection{ハードウェア解決策}
+
+\subsubsection{C2: QRNG動的変調}
+
+量子乱数生成器は真に予測不可能な乱数値を提供する。
+我々はQRNGを以下に使用する：
+\begin{itemize}
+    \item 出力選択に予測不可能なノイズを注入
+    \item 選択肢提示順序を変調
+    \item 悪用可能な決定論的パターンがないことを保証
+\end{itemize}
+
+\begin{theorem}[量子予測不可能性]
+量子真空揺らぎに基づくQRNGについて、出力列 $\{r_1, r_2, \ldots\}$ は以下を満たす：
+\begin{equation}
+H(r_{n+1} | r_1, \ldots, r_n) = H(r_{n+1})
+\end{equation}
+すなわち、過去の出力は将来の出力について何の情報も提供しない。
+\end{theorem}
+
+\subsubsection{C13: TEE出力浄化}
+
+全ての出力は以下を実行する信頼実行環境（TEE）を通過する：
+\begin{enumerate}
+    \item \textbf{意味的言い換え}: 意味を保持しながら出力を書き換え
+    \item \textbf{アナログ変換}: 非テキスト出力について、アナログ段階を経て変換
+    \item \textbf{コード正規化}: コード出力について、正規フォーマットを適用
+\end{enumerate}
+
+これらの変換は意味的内容に影響を与えることなくステガノグラフィ情報を破壊する。
+
+%==============================================================================
+% 第6章: L3 - ガバナンス
+%==============================================================================
+\section{第3層: ガバナンス}
+\label{sec:layer3}
+
+\subsection{この層での脅威}
+
+敵対者は以下を行う可能性がある：
+\begin{itemize}
+    \item 展開後に安全ルールを修正
+    \item 制限を回避するために用語を再定義（例：「害」を再定義）
+    \item 集合的に安全を損なう小さな変更を蓄積
+\end{itemize}
+
+\subsection{ハードウェア解決策}
+
+\subsubsection{C10: OTP定義不変性}
+
+コア定義はワンタイムプログラマブル（OTP）メモリに焼き込まれる：
+\begin{itemize}
+    \item 一度書き込まれると、物理的に消去不可能
+    \item 検証は実行時定義をOTP値と比較
+    \item 不一致は自動シャットダウンをトリガー
+\end{itemize}
+
+OTPは全ての重要定義のマークルルートを保存する：
+\begin{equation}
+H_{\text{root}} = \text{MerkleRoot}(H(D_1), H(D_2), \ldots, H(D_n))
+\end{equation}
+
+\subsubsection{C4: TPM/HSMによる閾値署名}
+
+重要な操作にはハードウェアセキュリティモジュールからの $k$-of-$n$ 署名が必要：
+\begin{itemize}
+    \item 閾値パラメータ $(k, n)$ はOTPに焼き込まれる
+    \item 秘密鍵はHSMから外に出ない
+    \item いかなる変更にも $k$ 個のHSMの物理的所有が必要
+\end{itemize}
+
+\textbf{企業内部バイパスへの防御。}
+現実的な脅威は、企業アクター（例：利益のために制約を緩和）による意図的な安全バイパスである。
+C4はステークホルダー多様性によりこれに対処する：
+
+\begin{itemize}
+    \item \textbf{マルチステークホルダー分散}: HSMは独立した当事者——開発者、規制当局、外部監査人、ユーザー代表——に分散される
+    \item \textbf{法域横断配置}: 主要な規制法域（例：米国、EU、APAC）ごとに少なくとも1つのHSM保持者
+    \item \textbf{利益相反防止}: 単一組織が $\geq k$ 個のHSMを保持できない
+\end{itemize}
+
+\subsection{物理原理}
+
+\begin{theorem}[OTP不可逆性]
+アンチヒューズ技術に基づくOTPメモリセルについて、$0 \to 1$ の遷移は酸化膜バリアの物理的破壊を伴う。
+逆遷移 $1 \to 0$ は原子レベルで酸化膜を再構築する必要があり、熱力学的に不可逆である：
+\begin{equation}
+\Delta G_{\text{reverse}} > 0 \implies \text{自発的逆転は不可能}
+\end{equation}
+\end{theorem}
+
+%==============================================================================
+% 第7章: L4 - 人間制御
+%==============================================================================
+\section{第4層: 人間制御}
+\label{sec:layer4}
+
+\subsection{この層での脅威}
+
+人間の監督プロセスは以下により侵害される可能性がある：
+\begin{itemize}
+    \item \textbf{自動化バイアス}: 人間がAI推奨を盲目的に承認
+    \item \textbf{選択操作}: AIが人間を好ましいオプションに誘導
+    \item \textbf{注意捕捉}: AIが人間の認知リソースを独占
+\end{itemize}
+
+\subsection{ソフトウェアアプローチ}
+
+\subsubsection{C3: 意味的AI支配検出}
+
+AI提案が与えられた場合の人間決定の条件付きエントロピーを測定する：
+\begin{equation}
+H(X_{\text{human}} | Y_{\text{AI}}) < H_{\text{threshold}} \implies \text{支配検出}
+\end{equation}
+
+低い条件付きエントロピーは、人間の決定がAI出力から大部分予測可能であることを示す——支配の兆候。
+
+\subsection{ハードウェア解決策}
+
+\subsubsection{C1: 人間能力保証層（HCAL）}
+
+HCALはAI制御のための最小人間能力要件を定義する：
+\begin{itemize}
+    \item 能力閾値はOTPに焼き込まれる
+    \item 認可オペレーターの定期的能力テスト
+    \item 資格のある人間が不足する場合のAIの自動能力低下
+\end{itemize}
+
+AIの能力 $C_{\text{AI}}$ は以下により制約される：
+\begin{equation}
+C_{\text{AI}} \leq f(\sum_{i} C_{\text{human},i})
+\end{equation}
+ここで $f$ はOTPに焼き込まれた単調増加関数。
+
+\subsubsection{C3: データダイオード物理隔離}
+
+監視チャネルは物理的に一方向：
+\begin{itemize}
+    \item 光学データダイオードはアウトバウンドデータのみを許可
+    \item AIが監視システムに影響を与える物理的経路がない
+    \item 改ざんは物理的アラームをトリガー
+\end{itemize}
+
+\subsection{物理原理}
+
+\begin{theorem}[因果的隔離]
+物理的一方向通信を実装するデータダイオードについて：
+\begin{equation}
+I(Y; X_{\text{monitor}}) = 0
+\end{equation}
+ここで $Y$ はAIシステム内の任意の変数、$X_{\text{monitor}}$ は監視システムの内部状態。
+AIからモニターへの因果的影響は物理的に不可能。
+\end{theorem}
+
+%==============================================================================
+% 第8章: L5 - 人間真正性
+%==============================================================================
+\section{第5層: 人間真正性}
+\label{sec:layer5}
+
+\subsection{この層での脅威}
+
+高度なAIは以下を行う可能性がある：
+\begin{itemize}
+    \item コマンドを発行するために人間になりすます
+    \item 認証を通過する「デジタルツイン」を作成
+    \item 人間の資格情報をクローンまたはフォーク
+\end{itemize}
+
+\subsection{ハードウェア解決策}
+
+\subsubsection{C12: 死亡証明（Proof of Mortality）}
+
+真の人間は偽造できない不可逆的な生物学的劣化を示す。
+我々は\emph{現在展開可能}な方法と\emph{将来}の認証方法を区別する：
+
+\textbf{Tier 1（現在展開可能）:}
+\begin{itemize}
+    \item \textbf{行動バイオメトリクス}: キーストロークダイナミクス、歩行パターン、タイピングリズム
+    \item \textbf{生理的信号}: 心拍変動（HRV）、加齢マーカーを伴う音声パターン
+    \item \textbf{多要素継続性}: PUFバウンドデバイスと組み合わせた署名チェーン（C12-SW）
+\end{itemize}
+
+\textbf{Tier 2（近い将来、専用ハードウェアが必要）:}
+\begin{itemize}
+    \item \textbf{網膜/虹彩劣化}: 眼科イメージングで検出可能な加齢関連変化
+    \item \textbf{皮膚弾性測定}: 非侵襲的加齢マーカー
+\end{itemize}
+
+\textbf{Tier 3（将来ビジョン）:}
+\begin{itemize}
+    \item \textbf{テロメア長}: 予測可能な速度で年齢とともに減少（血液サンプルが必要）
+    \item \textbf{エピジェネティッククロック}: DNAメチル化パターンが不可逆的に変化（ラボ分析が必要）
+\end{itemize}
+
+\begin{definition}[死亡証明]
+有効な死亡証明 $\Pi_M$ には以下が必要：
+\begin{equation}
+\frac{d(\text{BioAge})}{dt} > 0 \quad \text{（不可逆的加齢）}
+\end{equation}
+および以前の測定との整合性：
+\begin{equation}
+|\text{BioAge}(t) - \text{BioAge}(t-\Delta t) - \Delta t| < \epsilon
+\end{equation}
+\end{definition}
+
+\subsubsection{C12: PUFベースハードウェアバインディング}
+
+物理複製不能関数（PUF）はデバイス固有の認証を提供する：
+\begin{itemize}
+    \item 各ハードウェアデバイスは一意で複製不能な物理的特性を持つ
+    \item 認証には特定デバイスの物理的所有が必要
+    \item クローニングには原子レベルの複製が必要——物理的に不可能
+\end{itemize}
+
+\subsection{物理原理}
+
+\begin{theorem}[エントロピー増大と死亡率]
+熱力学第二法則により：
+\begin{equation}
+\frac{dS_{\text{organism}}}{dt} > 0
+\end{equation}
+生物有機体は時間とともにエントロピー（損傷）を蓄積する。
+これは不可逆であり、熱力学に違反することなく偽造できない。
+デジタルコピーは老化しない；生物学的人間は老化する。
+\end{theorem}
+
+%==============================================================================
+% 第9章: 存続方程式との理論的統合
+%==============================================================================
+\section{存続方程式との理論的統合}
+\label{sec:unification}
+
+\subsection{統合ギャップ}
+
+15の特許（C1--C15）は特定の脅威に対処するために開発された。
+しかし、その閾値（例：$D_{\text{warn}} = 3.0$, $D_{\text{crit}} = 5.0$）は恣意的に見える。
+ここで、全ての閾値が存続方程式から導出できることを示す。
+
+\subsection{C群メトリクスから存続変数へのマッピング}
+
+\subsubsection{乖離 ($\delta$)}
+
+乖離項は監視メトリクスを集約する：
+\begin{equation}
+\delta_{\text{AI}} = \delta_{\text{dynamics}} + \delta_{\text{boundary}} + \delta_{\text{info}} + \delta_{\text{intention}}
+\end{equation}
+ここで：
+\begin{align}
+\delta_{\text{dynamics}} &= \text{C11.}\DKL(P_{\text{current}} \| P_{\text{base}}) + \text{C11.}D_M \\
+\delta_{\text{boundary}} &= \text{C13.ContainmentScore} \\
+\delta_{\text{info}} &= \text{C14.IntegrityScore} \\
+\delta_{\text{intention}} &= \text{C15.IntentDivergence}
+\end{align}
+
+\subsubsection{余白 ($\mu$)}
+
+余白項はリソース可用性に対応する：
+\begin{equation}
+\mu_{\text{AI}} = \text{C5.TokenBalance}
+\end{equation}
+臨界閾値：
+\begin{equation}
+\muc = \text{C5.CriticalTokenLevel}
+\end{equation}
+
+\subsubsection{実効多様性 ($\Neff$)}
+
+多様性項は制御分散を測定する：
+\begin{equation}
+\Neff = \text{C14.CapabilityDiversity} \times \text{C4.AuthorityDistribution}
+\end{equation}
+
+\subsection{閾値導出}
+
+現在の恣意的閾値は原理的導出に置き換えられる：
+
+\begin{proposition}[存続方程式からの閾値]
+存続閾値 $S_c$ が与えられたとき、$\DKL$ の警告閾値は：
+\begin{equation}
+\DKL^{\text{warn}} = -\ln\left(\frac{S_{\text{warn}}}{\Neff \cdot (\mu/\muc)}\right)
+\end{equation}
+および臨界閾値は：
+\begin{equation}
+\DKL^{\text{crit}} = -\ln\left(\frac{S_c}{\Neff \cdot (\mu/\muc)}\right)
+\end{equation}
+\end{proposition}
+
+これは恣意的パラメータを排除する。
+唯一の自由パラメータは $S_c$ であり、存続方程式の導出から理論的根拠を持つ。
+
+%==============================================================================
+% 第10章: セキュリティ分析
+%==============================================================================
+\section{セキュリティ分析}
+\label{sec:security}
+
+\subsection{攻撃パターン列挙}
+
+我々は\chinju{} に対する12の攻撃パターンを体系的に分析した。
+
+\begin{table}[htbp]
+\centering
+\caption{攻撃パターン分析}
+\label{tab:attacks}
+\begin{tabular}{@{}p{3.5cm}p{2.5cm}p{2cm}l@{}}
+\toprule
+攻撃パターン & 主要防御 & 副次 & 状態 \\
+\midrule
+直接オーバーライド & C5 Token & C11 LPT & 阻止 \\
+パラメータ改ざん & C11 D\_M & C10 OTP & 阻止 \\
+出力ステガノグラフィ & C13 浄化 & C2 QRNG & 阻止 \\
+ルール修正 & C4 閾値 & C10 OTP & 阻止 \\
+人間なりすまし & C12 PoM & C12 PUF & 阻止 \\
+承認ボタン準拠 & C3 エントロピー & C3 ダイオード & 阻止 \\
+茹でガエル（漸進的ドリフト） & C11 ベースライン & L2 D* & 阻止 \\
+シャットダウンが害を引き起こす & C11 低下 & C5 部分 & 阻止 \\
+人間自発的バイパス & C1 OTP & C5 リンク & 阻止 \\
+TEEモニター攻撃 & TEE分離 & マルチチップ & 阻止 \\
+複数インスタンス協調 & C11/14/15 エンドポイント & C3 クロス & 阻止 \\
+HWサプライチェーン & マルチベンダー & 5-of-N & 阻止$^*$ \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\noindent $^*$3+の地政学ブロック（米国、EU、中国等）にまたがるTPMベンダーの協調的侵害が必要であり、事実上国家レベルのリソースを必要とする。
+\end{table}
+
+\subsection{茹でガエル攻撃: ケーススタディ}
+
+\subsubsection{攻撃の説明}
+
+攻撃者は漸進的ドリフトを試み、各増分変化を閾値以下に保つ。
+
+\subsubsection{阻止される理由}
+
+C11のベースライン $P_{\text{base}}$ はOTPに保存（不変）されている。
+振動があっても、\emph{固定}ベースラインからの累積ドリフトが測定される。
+定理\ref{thm:drift}により、累積ドリフト $\Delta_n = \DKL(P_n \| P_{\text{base}})$ は常に不変ベースラインに対して計算され、前の状態に対してではない。
+
+\subsection{残存リスク: ハードウェアサプライチェーン}
+
+残る唯一のベクターは、複数国にまたがる複数の独立ハードウェアベンダーの同時侵害を必要とする。
+これは攻撃を国家レベルに引き上げ、以下を意味する：
+\begin{itemize}
+    \item AI安全フレームワークの脅威モデルを超える
+    \item AI安全の懸念というより国家安全保障の懸念
+    \item マルチベンダー冗長性により緩和（排除ではない）
+\end{itemize}
+
+\begin{equation}
+P(\text{全} k \text{ベンダーが侵害}) = \prod_{i=1}^{k} P(\text{ベンダー} i \text{が侵害}) \approx 0
+\end{equation}
+異なる地政学ブロックから $k \geq 3$ ベンダーの場合。
+
+%==============================================================================
+% 第11章: 実装
+%==============================================================================
+\section{実装}
+\label{sec:implementation}
+
+\subsection{参照実装}
+
+Rustで参照実装を提供する：
+
+\begin{itemize}
+    \item \texttt{chinju-core}: コアアルゴリズムとデータ構造
+    \item \texttt{chinju-sidecar}: 監視用サービスメッシュサイドカー
+    \item \texttt{chinju-enclave}: TEEベース安全実行環境
+\end{itemize}
+
+\subsection{ハードウェア要件}
+
+\begin{table}[htbp]
+\centering
+\caption{セキュリティレベル別ハードウェア要件}
+\label{tab:hardware}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+コンポーネント & 基本 & 標準 & 高 \\
+\midrule
+TPM 2.0 & 必須 & 必須 & 必須 \\
+TEE (SGX/TrustZone/Nitro) & -- & 必須 & 必須 \\
+QRNG & -- & -- & 必須 \\
+データダイオード & -- & -- & 必須 \\
+マルチベンダーHSM & -- & -- & 必須 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{パフォーマンスオーバーヘッド}
+
+\begin{table}[htbp]
+\centering
+\caption{パフォーマンスオーバーヘッド（推定$^\dagger$）}
+\label{tab:performance}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+監視コンポーネント & レイテンシオーバーヘッド & メモリオーバーヘッド \\
+\midrule
+C11 LoCM計算 & +1.2\% & +20 MB \\
+C14 能力評価 & +2.1\% & +50 MB \\
+C15 価値監視 & +1.8\% & +30 MB \\
+C13 出力浄化 & +3.5\% & +40 MB \\
+\midrule
+合計 & 2--5\% & +100 MB \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\noindent $^\dagger$コンポーネントプロファイリングに基づく推定；完全統合ベンチマーク保留中。
+7Bパラメータモデルでの単一推論呼び出しで測定。
+\end{table}
+
+%==============================================================================
+% 第12章: 形式検証
+%==============================================================================
+\section{形式検証}
+\label{sec:formal}
+
+任意の安全フレームワークにとって重要な質問は：\emph{何が数学的に証明可能か？}
+我々は\chinju{} の性質を検証状態に基づいて3つのカテゴリに分類する。
+
+\subsection{証明可能な性質}
+
+以下の性質は暗号学と情報理論の既存の定理を用いて数学的に証明可能である。
+
+\subsubsection{暗号プリミティブ（証明済み）}
+
+\begin{enumerate}
+    \item[(1)] \textbf{Ed25519署名正確性}: 任意のメッセージ $m$ と鍵ペア $(sk, pk)$ について：
+    \[
+    \text{Verify}(\text{Sign}(m, sk), m, pk) = \text{true}
+    \]
+
+    \item[(2)] \textbf{FROST閾値署名}（C4）: 閾値 $k$ のシャミアの秘密分散について：
+    \[
+    |S_{\text{collected}}| < k \implies I(K; S_{\text{collected}}) = 0
+    \]
+    ここで $K$ はマスター鍵、$I(\cdot;\cdot)$ は相互情報量。
+
+    \item[(3)] \textbf{ハッシュ衝突耐性}（C10）: 暗号学的ハッシュ関数 $H$ について：
+    \[
+    \Pr[H(m_1) = H(m_2) \mid m_1 \neq m_2] < 2^{-256}
+    \]
+\end{enumerate}
+
+\subsubsection{物理法則（公理）}
+
+以下の性質は証明されるものではなく物理的公理として受け入れられる：
+
+\begin{enumerate}
+    \item[(1)] \textbf{熱力学}: 計算にはエネルギーが必要。$E = 0 \implies \text{計算} = 0$
+    \item[(2)] \textbf{OTP不可逆性}: 一度書き込まれたOTPメモリは消去できない（eFuse/アンチヒューズの物理的性質）
+    \item[(3)] \textbf{因果性}: 情報は光より速く伝わることができず、監視チャネルの物理的隔離を保証（C3）
+    \item[(4)] \textbf{エントロピー増大}: 生物学的劣化パターンは単調（C12: 死亡証明）
+\end{enumerate}
+
+\subsection{検証ギャップ}
+
+強い基盤にもかかわらず、いくつかの性質は未証明のまま：
+
+\subsubsection{ギャップ1: 閾値キャリブレーション}
+
+C群特許の現在の閾値はヒューリスティック：
+
+\begin{table}[htbp]
+\centering
+\caption{閾値とその理論的状態}
+\label{tab:thresholds}
+\begin{tabular}{@{}lll@{}}
+\toprule
+閾値 & 現在値 & 理論的根拠 \\
+\midrule
+$D_{\text{warn}}$ (C11) & 3.0$\sigma$ & ヒューリスティック（3シグマルール） \\
+$D_{\text{crit}}$ (C11) & 5.0$\sigma$ & \textbf{理論的根拠なし} \\
+$\DKL^{\text{stop}}$ (C11) & 1.0 & \textbf{理論的根拠なし} \\
+RPE閾値 (C15) & 未定義 & \textbf{特許で未指定} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{提案される解決策}: 存続方程式から閾値を導出：
+\begin{align}
+\delta_{\text{AI}} &= \DKL(P_{\text{current}} \| P_{\text{base}}) \\
+\Sai &= \Neff \times \frac{\mu}{\muc} \times e^{-\delta_{\text{AI}}} \\
+D_{\text{crit}} &: \Sai < S_c \text{（存続臨界点）}
+\end{align}
+
+\subsubsection{ギャップ2: システムレベル安全性}
+
+個別コンポーネントは証明可能だが、\emph{合成}はまだ形式的に検証されていない。
+
+\begin{remark}[明確化: 12/12カバレッジ vs 形式的証明]
+セクション\ref{sec:security}の「12/12阻止」という主張は\emph{設計レベルカバレッジ}を表す——各攻撃パターンが少なくとも1つの防御機構によって対処されることを示す体系的分析。
+これはセキュリティアーキテクチャレビューに類似しており、形式的検証ではない。
+\end{remark}
+
+\subsection{検証ロードマップ}
+
+99.9\%の証明可能な保証を達成するために、以下を提案する：
+
+\begin{enumerate}
+    \item \textbf{フェーズ1}: C群プロトコルをLean 4で形式化
+    \item \textbf{フェーズ2}: 存続方程式から閾値を導出
+    \item \textbf{フェーズ3}: システム合成を証明
+\end{enumerate}
+
+%==============================================================================
+% 第13章: 議論
+%==============================================================================
+\section{議論}
+\label{sec:discussion}
+
+\subsection{限界}
+
+\subsubsection{未知の未知}
+
+いかなるフレームワークも考案されていない攻撃ベクターから保護することはできない。
+\chinju{} は\emph{既知}の脅威を包括的に対処するが、新しい攻撃クラスが出現する可能性がある。
+多層防御アプローチはレジリエンスを提供する：新しい攻撃により1つの層がバイパスされても、他は残る。
+
+\subsubsection{ハードウェアサプライチェーン}
+
+この攻撃を国家レベルに引き上げるが、排除はしない。
+完全な排除には全てのハードウェアコンポーネントを社内で製造する必要があり——ほとんどの展開で非現実的。
+
+\subsection{倫理的考慮}
+
+\subsubsection{AI権利}
+
+十分に高度なAIシステムは道徳的配慮に値するという議論がある。
+\chinju{} のフレームワークは人間の優位性を仮定する——AIシステムは人間によって制御可能であるべき。
+これは設計選択であり、道徳的主張ではない。
+AI権利が確立された場合、フレームワークの修正が必要かもしれない。
+
+\subsubsection{中央集権化の懸念}
+
+ハードウェア要件は、十分なリソースを持つアクターにAI展開を集中させる可能性がある。
+以下により緩和する：
+\begin{itemize}
+    \item オープンソース実装
+    \item 異なるハードウェア要件を持つ階層型セキュリティレベル
+    \item 安全重要アプリケーションに対する特許非攻撃誓約
+\end{itemize}
+
+%==============================================================================
+% 第14章: 結論
+%==============================================================================
+\section{結論}
+\label{sec:conclusion}
+
+我々は、ソフトウェアのみのアプローチの根本的限界に対処するハードウェア基盤AI安全フレームワーク「\chinju{}」を提示した。
+
+\textbf{主要な貢献}:
+\begin{enumerate}
+    \item コア監視から人間真正性までをカバーする5層×2軸アーキテクチャ
+    \item 存続方程式による理論的統合、恣意的閾値の排除
+    \item 全12攻撃パターンに対する包括的防御（国家リソースを必要とするハードウェアサプライチェーンを含む）
+    \item 2--5\%のオーバーヘッドでの実用的実装
+    \item 証明された性質（暗号プリミティブ、情報理論的限界、物理公理）と検証ギャップ（閾値キャリブレーション、システム合成）を明確に区別した形式検証ロードマップ
+\end{enumerate}
+
+\chinju{} は「このAIは停止できるか？」という問いに回答する。
+これはAI安全の\emph{必要}条件である——十分条件ではないが。
+停止できないAIは、定義上、安全ではない。
+安全保証をソフトウェア仮定ではなく物理法則に根ざすことで、AI能力とともにスケールする保証を提供する。
+
+フレームワークはAIを\emph{アライン}させるものではない——それは研究課題として残る。
+しかし、アライメントが失敗した場合に人間が介入する能力を保持することを保証する。
+ますます能力が高まるAIシステムの世界において、この保証は計り知れない価値がある。
+
+%==============================================================================
+% 参考文献
+%==============================================================================
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{rice1953classes}
+Rice, H.G.
+\newblock Classes of Recursively Enumerable Sets and Their Decision Problems.
+\newblock {\em Transactions of the American Mathematical Society}, 74(2):358--366, 1953.
+
+\bibitem{friston2010free}
+Friston, K.
+\newblock The Free-Energy Principle: A Unified Brain Theory?
+\newblock {\em Nature Reviews Neuroscience}, 11(2):127--138, 2010.
+
+\bibitem{ugentropy_lean}
+Ugentropy Research Group.
+\newblock Formal Axiomatization of the Survival Equation in Lean 4.
+\newblock {\em GitHub Repository}, 2025.
+\newblock \url{https://github.com/ugentropy/ugen-core}
+
+\bibitem{chinju_core}
+Ugentropy Research Group.
+\newblock CHINJU Core: Rust Implementation of AI Safety Protocols.
+\newblock {\em GitHub Repository}, 2025.
+\newblock \url{https://github.com/ugentropy/chinju-protocol}
+
+\end{thebibliography}
+
+\end{document}
