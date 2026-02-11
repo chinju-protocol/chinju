@@ -1424,6 +1424,24 @@ As detailed in Section~\ref{sec:formal}, several verification tasks remain:
     \item \textbf{Integration}: Deeper integration with interpretability research
 \end{enumerate}
 
+\subsection{Extension to Survival Optimization}
+The Survival Equation $S = \Neff \times (\mu/\muc) \times e^{-\delta}$ is not merely a monitoring metric but a generative objective function.
+By integrating this mathematical model into the generation process, \chinju{} extends beyond safety enforcement to safety \emph{optimization}:
+\begin{itemize}
+    \item \textbf{SurvivalAttention}: Modifies the Transformer attention mechanism to weight tokens by their survival contribution $S(t)$, intrinsically suppressing harmful or hallucinatory content during generation.
+    \item \textbf{SurvivalRecommendation}: Optimizes content delivery for long-term user and platform survival rather than short-term engagement, mitigating addiction and polarization risks.
+\end{itemize}
+This transforms \chinju{} from a passive "brake" into an active "steering wheel" for safe AI navigation.
+
+\subsection{Future Work: From Monitoring to Optimization}
+While \chinju{} focuses on safety enforcement ("braking"), the underlying Survival Equation $S = \Neff \times (\mu/\muc) \times e^{-\delta}$ can also serve as a generative objective function ("steering").
+Future work will explore integrating this mathematical model directly into the generation process:
+\begin{itemize}
+    \item \textbf{SurvivalAttention}: Modifying the Transformer attention mechanism to weight tokens by their survival contribution $S(t)$, intrinsically suppressing harmful or hallucinatory content during generation.
+    \item \textbf{SurvivalRecommendation}: Optimizing content delivery for long-term user and platform survival rather than short-term engagement, mitigating addiction and polarization risks.
+\end{itemize}
+This extension would transform \chinju{} from a passive safety framework into an active optimization paradigm for safe AI navigation.
+
 %==============================================================================
 % SECTION 15: CONCLUSION
 %==============================================================================
