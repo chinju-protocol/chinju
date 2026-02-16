@@ -577,6 +577,81 @@ chinju/
 
 ---
 
+## Implementation Status
+
+### ソフトウェア層 ✅ 完了
+
+| コンポーネント | 状態 | 備考 |
+|:--|:--|:--|
+| chinju-sidecar (Rust) | ✅ 完了 | C14-C17 gRPC全実装、276テスト |
+| chinju-vllm (Python) | ✅ 完了 | gRPCクライアント完成、137テスト |
+| chinju-enclave | ✅ 完了 | AWS Nitro Enclaves対応 |
+| chinju-core | ✅ 完了 | FROST閾値署名、ポリシーエンジン |
+
+### LLM統合層 🟡 一部完了
+
+| コンポーネント | 状態 | 必要環境 | 貢献者募集 |
+|:--|:--|:--|:--|
+| Sidecar連携テスト | ✅ 完了 | CPU環境で動作 | - |
+| vLLM統合テスト | ⏳ 未検証 | CUDA GPU + vLLM 0.4+ | ✓ |
+| 価値ニューロン特定 | ⏳ 未検証 | Llama-2/3モデル + GPU | ✓ |
+| SurvivalAttention性能測定 | ⏳ 未検証 | GPU環境 | ✓ |
+| TGI統合 | ❌ 未実装 | TGI環境 | ✓ |
+
+**GPU環境での検証に協力いただける方を募集しています。**
+
+### ハードウェア層 ❌ 未実装
+
+以下のハードウェアは特許明細書に記載されていますが、実装は未着手です。
+
+| コンポーネント | 役割 | 調達先例 | 貢献者募集 |
+|:--|:--|:--|:--|
+| OTP | 閾値・ルート鍵の物理固定 | Microchip ATECC608B | ✓ |
+| HSM | 暗号鍵の隔離管理 | AWS CloudHSM / YubiHSM 2 | ✓ |
+| eFuse | 認定失効時の不可逆遮断 | FPGA内蔵 / 専用IC | ✓ |
+| QRNG | 物理乱数生成 | ID Quantique Quantis | ✓ |
+| データダイオード | 一方向通信の物理強制 | Owl Cyber Defense | ✓ |
+| FPGA | メタ選択肢のHW強制挿入 | Xilinx / Intel | ✓ |
+| TPM 2.0 | 憲章ハッシュ検証 | Infineon SLB9670 | ✓ |
+| PUF | 物理的偽造不可能認証 | Intrinsic ID QuiddiKey | ✓ |
+
+**ハードウェア統合の経験がある方の貢献を歓迎します。**
+
+### 現在のセキュリティレベル
+
+```
+L1 (Development)  ← 現在地
+  ↓
+L2 (SoftHSM) - ソフトウェアエミュレーション
+  ↓
+L3 (CloudHSM/Nitro) - クラウドHSM統合 ← 一部対応済み
+  ↓
+L4 (Dedicated HSM) - 専用HSM + 物理分離
+  ↓
+L5 (Full Hardware) - OTP/eFuse/QRNG完全統合
+```
+
+### ステータス凡例
+
+| 記号 | 意味 |
+|:--|:--|
+| ✅ 完了 | 実装・テスト済み |
+| ⏳ 未検証 | コードは存在するが、本番環境でのテストが未完了 |
+| ❌ 未実装 | コード自体が存在しない |
+
+### 貢献の始め方
+
+詳細は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。
+
+| 貢献タイプ | 最初の一歩 | 難易度 |
+|:--|:--|:--|
+| **GPU検証** | `chinju-vllm/tests/` をGPU環境で実行し、結果をIssueで報告 | ⭐ |
+| **ドキュメント** | typo修正、説明の改善、翻訳 | ⭐ |
+| **TGI統合** | `chinju-vllm/` を参考にTGI用Adapterを作成 | ⭐⭐ |
+| **ハードウェアPoC** | `sample/hardware/` の仕様を参考にプロトタイプを作成 | ⭐⭐⭐ |
+
+---
+
 ## FAQ
 
 ### Q: 既存システムへの導入は難しいですか？（ハードウェア要件など）

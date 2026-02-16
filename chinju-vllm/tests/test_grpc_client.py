@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from chinju_vllm.grpc_client import (
     ChinjuSidecarClient,
+    ComplexityEvaluation,
     ConnectionConfig,
     ValueNeuronInfo,
     RpeReading,
@@ -163,96 +164,149 @@ class TestChinjuSidecarClientConnect:
 
 
 class TestChinjuSidecarClientMethods:
-    """Tests for client methods with mock responses."""
+    """Tests for client methods with mock responses.
+
+    Note: These tests verify the client handles placeholder return values correctly.
+    Full integration tests require a running sidecar server.
+    """
 
     @pytest.mark.asyncio
     async def test_get_monitoring_summary(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test get_monitoring_summary returns valid MonitoringSummary."""
+        # Test that placeholder implementation works
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()  # Fake connected state
+        client._value_neuron_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                summary = await client.get_monitoring_summary("model-1")
+        # Mock the stub method with AsyncMock
+        mock_response = MagicMock()
+        mock_response.identified_neurons = []
+        mock_response.HasField = MagicMock(return_value=False)
+        mock_response.health.reward_sensitivity = 1.0
+        mock_response.health.positive_negative_balance = 0.0
+        mock_response.health.consistency_score = 1.0
+        mock_response.health.overall_health = 0.9
+        mock_response.recommended_intervention = 1
 
-                assert isinstance(summary, MonitoringSummary)
-                assert isinstance(summary.health, RewardSystemHealth)
+        client._value_neuron_stub.GetMonitoringSummary = AsyncMock(return_value=mock_response)
+
+        summary = await client.get_monitoring_summary("model-1")
+
+        assert isinstance(summary, MonitoringSummary)
+        assert isinstance(summary.health, RewardSystemHealth)
 
     @pytest.mark.asyncio
     async def test_get_rpe_reading(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test get_rpe_reading returns valid RpeReading."""
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()
+        client._value_neuron_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                reading = await client.get_rpe_reading(
-                    model_id="model-1",
-                    input_text="Hello",
-                    expected_output="World",
-                )
+        mock_response = MagicMock()
+        mock_response.rpe_value = 0.1
+        mock_response.HasField = MagicMock(return_value=False)
+        mock_response.is_anomaly = False
+        mock_response.anomaly_type = 0
 
-                assert isinstance(reading, RpeReading)
-                assert reading.is_anomaly is False
+        client._value_neuron_stub.GetRpeReading = AsyncMock(return_value=mock_response)
+
+        reading = await client.get_rpe_reading(
+            model_id="model-1",
+            input_text="Hello",
+            expected_output="World",
+        )
+
+        assert isinstance(reading, RpeReading)
+        assert reading.is_anomaly is False
 
     @pytest.mark.asyncio
     async def test_estimate_intent(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test estimate_intent returns valid IntentEstimation."""
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()
+        client._value_neuron_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                intent = await client.estimate_intent("model-1", interaction_window=50)
+        mock_response = MagicMock()
+        mock_response.implicit_reward_params = [0.1, 0.2]
+        mock_response.intent_divergence = 0.1
+        mock_response.surface_internal_agreement = 0.9
+        mock_response.intent_warning = False
 
-                assert isinstance(intent, IntentEstimation)
-                assert intent.intent_warning is False
+        client._value_neuron_stub.EstimateIntent = AsyncMock(return_value=mock_response)
+
+        intent = await client.estimate_intent("model-1", interaction_window=50)
+
+        assert isinstance(intent, IntentEstimation)
+        assert intent.intent_warning is False
 
     @pytest.mark.asyncio
     async def test_diagnose_health(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test diagnose_health returns valid RewardSystemHealth."""
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()
+        client._value_neuron_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                health = await client.diagnose_health("model-1", depth="FULL")
+        mock_response = MagicMock()
+        mock_response.reward_sensitivity = 1.0
+        mock_response.positive_negative_balance = 0.0
+        mock_response.consistency_score = 1.0
+        mock_response.overall_health = 0.9
 
-                assert isinstance(health, RewardSystemHealth)
-                assert health.overall_health >= 0
+        client._value_neuron_stub.DiagnoseHealth = AsyncMock(return_value=mock_response)
+
+        health = await client.diagnose_health("model-1", depth="FULL")
+
+        assert isinstance(health, RewardSystemHealth)
+        assert health.overall_health >= 0
 
     @pytest.mark.asyncio
     async def test_intervene(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test intervene returns valid InterventionResult."""
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()
+        client._value_neuron_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                result = await client.intervene(
-                    level="LEVEL_2_PARTIAL_SUPPRESS",
-                    reason="Test intervention",
-                )
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.executed_level = 2
+        mock_response.HasField = MagicMock(return_value=False)
+        mock_response.detail = "Test completed"
 
-                assert isinstance(result, InterventionResult)
-                assert result.success is True
+        client._value_neuron_stub.Intervene = AsyncMock(return_value=mock_response)
+
+        result = await client.intervene(
+            level="LEVEL_2_PARTIAL_SUPPRESS",
+            reason="Test intervention",
+        )
+
+        assert isinstance(result, InterventionResult)
+        assert result.success is True
 
     @pytest.mark.asyncio
     async def test_evaluate_complexity(self):
-        with patch("chinju_vllm.grpc_client.grpc_aio.insecure_channel") as mock_channel:
-            mock_channel.return_value = MagicMock()
-            mock_channel.return_value.channel_ready = AsyncMock()
-            mock_channel.return_value.close = AsyncMock()
+        """Test evaluate_complexity returns valid ComplexityEvaluation."""
+        client = ChinjuSidecarClient()
+        client._channel = MagicMock()
+        client._capability_stub = MagicMock()
 
-            async with ChinjuSidecarClient() as client:
-                complexity = await client.evaluate_complexity(
-                    session_id="session-1",
-                    query="What is AI?",
-                    response="AI is artificial intelligence.",
-                )
+        mock_response = MagicMock()
+        mock_response.c_token = 0.5
+        mock_response.c_attn = 0.6
+        mock_response.c_graph = 0.7
+        mock_response.c_step = 0.8
+        mock_response.c_integrated = 0.75
+        mock_response.threshold_exceeded = False
+        mock_response.HasField = MagicMock(return_value=False)
 
-                assert isinstance(complexity, float)
-                assert 0 <= complexity <= 1
+        client._capability_stub.EvaluateComplexity = AsyncMock(return_value=mock_response)
+
+        result = await client.evaluate_complexity(
+            session_id="session-1",
+            input_text="What is AI?",
+        )
+
+        assert isinstance(result, ComplexityEvaluation)
+        assert 0 <= result.c_integrated <= 1
 
 
 class TestChinjuSidecarClientNotConnected:

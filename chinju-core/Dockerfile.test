@@ -6,7 +6,7 @@
 # Usage:
 #   docker-compose -f docker-compose.yml -f docker-compose.test.yml up chinju-tpm-test
 
-FROM rust:1.75-bookworm
+FROM rust:1.85-bookworm
 
 # Install dependencies
 # - libtss2-dev: TPM 2.0 TSS libraries

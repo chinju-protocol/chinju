@@ -456,6 +456,81 @@ chinju/
 
 ---
 
+## Implementation Status
+
+### Software Layer ✅ Complete
+
+| Component | Status | Notes |
+|:--|:--|:--|
+| chinju-sidecar (Rust) | ✅ Complete | C14-C17 gRPC fully implemented, 276 tests |
+| chinju-vllm (Python) | ✅ Complete | gRPC client complete, 137 tests |
+| chinju-enclave | ✅ Complete | AWS Nitro Enclaves support |
+| chinju-core | ✅ Complete | FROST threshold signatures, policy engine |
+
+### LLM Integration Layer 🟡 Partially Complete
+
+| Component | Status | Required Environment | Contributors Wanted |
+|:--|:--|:--|:--|
+| Sidecar integration tests | ✅ Complete | Runs on CPU | - |
+| vLLM integration tests | ⏳ Unverified | CUDA GPU + vLLM 0.4+ | ✓ |
+| Value neuron identification | ⏳ Unverified | Llama-2/3 model + GPU | ✓ |
+| SurvivalAttention performance | ⏳ Unverified | GPU environment | ✓ |
+| TGI integration | ❌ Not implemented | TGI environment | ✓ |
+
+**We are looking for contributors to help verify in GPU environments.**
+
+### Hardware Layer ❌ Not Implemented
+
+The following hardware is described in the patent specifications but implementation has not started.
+
+| Component | Role | Example Vendors | Contributors Wanted |
+|:--|:--|:--|:--|
+| OTP | Physical fixation of thresholds/root keys | Microchip ATECC608B | ✓ |
+| HSM | Isolated key management | AWS CloudHSM / YubiHSM 2 | ✓ |
+| eFuse | Irreversible shutdown on certification revocation | FPGA built-in / dedicated IC | ✓ |
+| QRNG | Physical random number generation | ID Quantique Quantis | ✓ |
+| Data Diode | Physical enforcement of one-way communication | Owl Cyber Defense | ✓ |
+| FPGA | Hardware-enforced meta-option insertion | Xilinx / Intel | ✓ |
+| TPM 2.0 | Charter hash verification | Infineon SLB9670 | ✓ |
+| PUF | Physically unclonable authentication | Intrinsic ID QuiddiKey | ✓ |
+
+**We welcome contributions from those with hardware integration experience.**
+
+### Current Security Level
+
+```
+L1 (Development)  ← Current
+  ↓
+L2 (SoftHSM) - Software emulation
+  ↓
+L3 (CloudHSM/Nitro) - Cloud HSM integration ← Partially supported
+  ↓
+L4 (Dedicated HSM) - Dedicated HSM + physical isolation
+  ↓
+L5 (Full Hardware) - Complete OTP/eFuse/QRNG integration
+```
+
+### Status Legend
+
+| Symbol | Meaning |
+|:--|:--|
+| ✅ Complete | Implemented and tested |
+| ⏳ Unverified | Code exists but not tested in production environment |
+| ❌ Not implemented | No code exists |
+
+### How to Contribute
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+
+| Contribution Type | First Step | Difficulty |
+|:--|:--|:--|
+| **GPU Verification** | Run `chinju-vllm/tests/` in GPU environment and report results via Issue | ⭐ |
+| **Documentation** | Fix typos, improve explanations, translations | ⭐ |
+| **TGI Integration** | Create TGI adapter based on `chinju-vllm/` | ⭐⭐ |
+| **Hardware PoC** | Create prototype based on `sample/hardware/` specs | ⭐⭐⭐ |
+
+---
+
 ## FAQ
 
 ### Q: Is it difficult to integrate into existing systems? (Hardware requirements, etc.)

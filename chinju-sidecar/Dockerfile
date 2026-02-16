@@ -10,7 +10,7 @@
 # =============================================================================
 # Stage 1: Build
 # =============================================================================
-FROM rust:1.75-bookworm AS builder
+FROM rust:1.85-bookworm AS builder
 
 # Build argument for TPM support
 ARG ENABLE_TPM=false
@@ -30,6 +30,7 @@ RUN apt-get update && \
 COPY Cargo.toml Cargo.lock* ./
 COPY chinju-core ./chinju-core
 COPY chinju-sidecar ./chinju-sidecar
+COPY chinju-enclave ./chinju-enclave
 COPY protocol ./protocol
 
 # Build release binary
@@ -45,8 +46,8 @@ RUN if [ "$ENABLE_TPM" = "true" ]; then \
 # =============================================================================
 FROM debian:bookworm-slim AS runtime
 
-# Install CA certificates for HTTPS (OpenAI API)
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install CA certificates for HTTPS and curl for health check
+RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN useradd -r -s /bin/false chinju

@@ -1,0 +1,26 @@
+# CHINJU Protocol - Rust Workspace
+#
+# This workspace contains the Rust components of the CHINJU Protocol.
+
+[workspace]
+resolver = "2"
+members = [
+    "chinju-core",
+    "chinju-sidecar",
+    "chinju-enclave",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/chinju-protocol/chinju"
+
+[workspace.dependencies]
+# Shared dependencies across workspace members
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

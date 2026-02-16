@@ -328,9 +328,14 @@ class SurvivalAttentionLayer(nn.Module):
         attn_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
         # Compute survival scores
+        # Convert 4D mask to 2D for scorer if needed
+        scorer_mask = attention_mask
+        if attention_mask is not None and attention_mask.dim() == 4:
+            # [batch, 1, 1, seq_len] -> [batch, seq_len]
+            scorer_mask = attention_mask.squeeze(1).squeeze(1)
         survival_scores = self.scorer.compute_survival_scores(
             hidden_states,
-            attention_mask,
+            scorer_mask,
         )  # [batch, seq_len]
 
         # Expand survival scores for attention: [batch, n_heads, seq_len, seq_len]
