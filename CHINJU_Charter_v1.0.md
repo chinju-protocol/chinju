@@ -23,6 +23,7 @@ CHINJU is not the only answer.
 **Note**:
 - If CHINJU ceases to function, it will not hinder migration to another protocol.
 - CHINJU is released as OSS. Anyone can fork and improve it.
+- Forked implementations displaying "CHINJU Compatible" are not subject to patent enforcement (see Article 9).
 - **Official certification (contract) is required to use the names "CHINJU" or "CHINJU Certified".**
 
 ### 2. Right to Stop
@@ -140,6 +141,7 @@ The operation of CHINJU must not be monopolized by a single entity.
 *   Aim for joint operation by multiple independent entities (initially managed by the founding entity, then progressively decentralized).
 *   Important decisions require the consensus of multiple entities.
 *   In principle, this consensus formation shall include multiple entities with conflicting interests (e.g., different jurisdictions, representatives from different sectors).
+*   **Charter Amendments**: Articles other than the Core (Guarantee of Alternatives, Right to Stop) may be amended by consensus of multiple entities. Amendment history shall be made public.
 
 ---
 
@@ -155,8 +157,9 @@ This is not a sanction, but a physical consequence.
 
 Verifiable proof takes precedence over any authority or majority vote.
 
-*   CHINJU certification judgment is an automatic determination based on mathematical formulas.
+*   CHINJU certification **judgment criteria** are automatic determinations based on mathematical formulas.
 *   It is based on verifiable criteria, not arbitrary human judgment.
+*   However, naming rights (brand protection) are governed by contract. This is a separate layer from judgment criteria.
 
 ---
 
@@ -166,6 +169,6 @@ Verifiable proof takes precedence over any authority or majority vote.
 
 **Signature**
 
-CHINJU Community
+CHINJU Founders
 
 Publication Date: January 30, 2026
