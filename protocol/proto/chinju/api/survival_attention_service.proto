@@ -1,0 +1,26 @@
+// CHINJU Protocol - Survival Attention Service API (C17)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.survival_attention;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/survival_attention";
+option java_package = "org.chinju.protocol.api.survival_attention";
+option java_multiple_files = true;
+
+import "chinju/survival_attention.proto";
+
+// Survival-Weighted Attention Service
+service SurvivalAttentionService {
+  // Compute survival scores
+  rpc ComputeSurvivalScores(chinju.survival_attention.ComputeScoresRequest) returns (chinju.survival_attention.TokenSurvivalScores);
+
+  // Infer with SurvivalAttention
+  rpc InferWithSurvivalAttention(chinju.survival_attention.SurvivalAttentionRequest) returns (chinju.survival_attention.SurvivalAttentionResponse);
+
+  // Adjust alpha dynamically
+  rpc AdjustAlpha(chinju.survival_attention.AdjustAlphaRequest) returns (chinju.survival_attention.AdjustAlphaResponse);
+
+  // Update SurvivalScorer model
+  rpc UpdateScorer(chinju.survival_attention.UpdateScorerRequest) returns (chinju.survival_attention.UpdateScorerResponse);
+}

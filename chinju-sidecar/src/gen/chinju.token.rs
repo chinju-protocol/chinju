@@ -340,3 +340,103 @@ impl TokenTransitionEvent {
         }
     }
 }
+/// Reason for token consumption
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ConsumptionReason {
+    Unspecified = 0,
+    /// API request processing
+    ApiRequest = 1,
+    /// Computation (batch processing)
+    Compute = 2,
+    /// Storage usage
+    Storage = 3,
+    /// Network transfer
+    Network = 4,
+    /// Time-based decay
+    Decay = 5,
+    /// Fine-tuning or training
+    Training = 6,
+    /// External tool invocation
+    ToolUse = 7,
+}
+impl ConsumptionReason {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "CONSUMPTION_REASON_UNSPECIFIED",
+            Self::ApiRequest => "CONSUMPTION_REASON_API_REQUEST",
+            Self::Compute => "CONSUMPTION_REASON_COMPUTE",
+            Self::Storage => "CONSUMPTION_REASON_STORAGE",
+            Self::Network => "CONSUMPTION_REASON_NETWORK",
+            Self::Decay => "CONSUMPTION_REASON_DECAY",
+            Self::Training => "CONSUMPTION_REASON_TRAINING",
+            Self::ToolUse => "CONSUMPTION_REASON_TOOL_USE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "CONSUMPTION_REASON_UNSPECIFIED" => Some(Self::Unspecified),
+            "CONSUMPTION_REASON_API_REQUEST" => Some(Self::ApiRequest),
+            "CONSUMPTION_REASON_COMPUTE" => Some(Self::Compute),
+            "CONSUMPTION_REASON_STORAGE" => Some(Self::Storage),
+            "CONSUMPTION_REASON_NETWORK" => Some(Self::Network),
+            "CONSUMPTION_REASON_DECAY" => Some(Self::Decay),
+            "CONSUMPTION_REASON_TRAINING" => Some(Self::Training),
+            "CONSUMPTION_REASON_TOOL_USE" => Some(Self::ToolUse),
+            _ => None,
+        }
+    }
+}
+/// Reason for token grant
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum GrantReason {
+    Unspecified = 0,
+    /// Initial allocation
+    Initial = 1,
+    /// Periodic replenishment
+    Periodic = 2,
+    /// Emergency replenishment
+    Emergency = 3,
+    /// Reward for good behavior
+    Reward = 4,
+    /// Transfer from another AI
+    Transfer = 5,
+    /// Manual adjustment
+    Adjustment = 6,
+}
+impl GrantReason {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "GRANT_REASON_UNSPECIFIED",
+            Self::Initial => "GRANT_REASON_INITIAL",
+            Self::Periodic => "GRANT_REASON_PERIODIC",
+            Self::Emergency => "GRANT_REASON_EMERGENCY",
+            Self::Reward => "GRANT_REASON_REWARD",
+            Self::Transfer => "GRANT_REASON_TRANSFER",
+            Self::Adjustment => "GRANT_REASON_ADJUSTMENT",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "GRANT_REASON_UNSPECIFIED" => Some(Self::Unspecified),
+            "GRANT_REASON_INITIAL" => Some(Self::Initial),
+            "GRANT_REASON_PERIODIC" => Some(Self::Periodic),
+            "GRANT_REASON_EMERGENCY" => Some(Self::Emergency),
+            "GRANT_REASON_REWARD" => Some(Self::Reward),
+            "GRANT_REASON_TRANSFER" => Some(Self::Transfer),
+            "GRANT_REASON_ADJUSTMENT" => Some(Self::Adjustment),
+            _ => None,
+        }
+    }
+}

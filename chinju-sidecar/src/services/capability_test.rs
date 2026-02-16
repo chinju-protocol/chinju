@@ -947,17 +947,28 @@ impl CapabilityTestSession {
 // Test Manager
 // =============================================================================
 
+/// Default session TTL: 2 hours (tests may take time)
+const DEFAULT_SESSION_TTL_SECS: u64 = 7200;
+
 /// Manages active test sessions
 pub struct CapabilityTestManager {
     generator: ChallengeGenerator,
     sessions: Arc<RwLock<HashMap<String, CapabilityTestSession>>>,
+    /// Session TTL in seconds
+    session_ttl_secs: u64,
 }
 
 impl CapabilityTestManager {
     pub fn new() -> Self {
+        Self::with_ttl(DEFAULT_SESSION_TTL_SECS)
+    }
+
+    /// Create with custom TTL
+    pub fn with_ttl(session_ttl_secs: u64) -> Self {
         Self {
             generator: ChallengeGenerator::new(),
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            session_ttl_secs,
         }
     }
 
@@ -1004,6 +1015,41 @@ impl CapabilityTestManager {
     /// Get challenge generator
     pub fn generator(&self) -> &ChallengeGenerator {
         &self.generator
+    }
+
+    /// Get active session count
+    pub async fn active_session_count(&self) -> usize {
+        self.sessions.read().await.len()
+    }
+
+    /// Cleanup expired sessions based on TTL
+    ///
+    /// Returns the number of sessions removed.
+    pub async fn cleanup_expired_sessions(&self) -> usize {
+        let now = Utc::now();
+        let ttl_duration = chrono::Duration::seconds(self.session_ttl_secs as i64);
+
+        let mut sessions = self.sessions.write().await;
+        let initial_count = sessions.len();
+
+        sessions.retain(|session_id, session| {
+            let age = now.signed_duration_since(session.started_at);
+            let keep = age < ttl_duration;
+            if !keep {
+                info!(
+                    session = session_id,
+                    age_secs = age.num_seconds(),
+                    "Test session expired, removing"
+                );
+            }
+            keep
+        });
+
+        let removed = initial_count - sessions.len();
+        if removed > 0 {
+            info!(removed = removed, remaining = sessions.len(), "Expired test sessions cleaned up");
+        }
+        removed
     }
 }
 

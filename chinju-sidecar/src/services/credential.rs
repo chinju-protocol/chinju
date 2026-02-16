@@ -25,8 +25,86 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+// =============================================================================
+// Security Level (10.3.1)
+// =============================================================================
+
+/// Security level for credential operations
+///
+/// Determines whether mock/fallback operations are allowed.
+/// Production environments should use HardwareStandard or higher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SecurityLevel {
+    /// L0: Mock (development only)
+    Mock = 0,
+    /// L1: Software (test/staging)
+    Software = 1,
+    /// L2: Hardware standard (production)
+    HardwareStandard = 2,
+    /// L3: Hardware premium (high-security production)
+    HardwarePremium = 3,
+}
+
+impl SecurityLevel {
+    /// Parse from environment variable CHINJU_MIN_SECURITY_LEVEL
+    pub fn from_env() -> Self {
+        match std::env::var("CHINJU_MIN_SECURITY_LEVEL")
+            .unwrap_or_else(|_| "mock".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "hardware_premium" | "hardwarepremium" | "l3" => Self::HardwarePremium,
+            "hardware_standard" | "hardwarestandard" | "l2" => Self::HardwareStandard,
+            "software" | "l1" => Self::Software,
+            _ => Self::Mock,
+        }
+    }
+}
+
+/// Credential service configuration
+#[derive(Debug, Clone)]
+pub struct CredentialServiceConfig {
+    /// Minimum security level required
+    pub min_security_level: SecurityLevel,
+    /// Allow fallback to mock when HSM fails
+    pub allow_hsm_fallback: bool,
+}
+
+impl Default for CredentialServiceConfig {
+    fn default() -> Self {
+        Self {
+            min_security_level: SecurityLevel::from_env(),
+            allow_hsm_fallback: std::env::var("CHINJU_ALLOW_HSM_FALLBACK")
+                .map(|v| v == "true" || v == "1")
+                .unwrap_or(true),
+        }
+    }
+}
+
+impl CredentialServiceConfig {
+    /// Create config for production (strict)
+    pub fn production() -> Self {
+        Self {
+            min_security_level: SecurityLevel::HardwareStandard,
+            allow_hsm_fallback: false,
+        }
+    }
+
+    /// Create config for development (permissive)
+    pub fn development() -> Self {
+        Self {
+            min_security_level: SecurityLevel::Mock,
+            allow_hsm_fallback: true,
+        }
+    }
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
 
 /// Minimum capability score required for credential issuance
 const MIN_CAPABILITY_SCORE: f64 = 0.3;
@@ -43,6 +121,8 @@ const EXPERT_THRESHOLD: f64 = 0.85;
 /// Credential Service for human verification
 #[derive(Clone)]
 pub struct CredentialServiceImpl {
+    /// Service configuration (10.3.1)
+    config: CredentialServiceConfig,
     /// Stored credentials (in production: database)
     credentials: Arc<RwLock<HashMap<String, StoredCredential>>>,
     /// Revocation list
@@ -77,8 +157,18 @@ struct PendingRequest {
 impl CredentialServiceImpl {
     /// Create a new credential service (mock signing)
     pub fn new() -> Self {
-        info!("Initializing CHINJU Credential Service with HCAL testing (mock signing)");
+        Self::with_config(CredentialServiceConfig::default())
+    }
+
+    /// Create with explicit configuration
+    pub fn with_config(config: CredentialServiceConfig) -> Self {
+        info!(
+            security_level = ?config.min_security_level,
+            allow_fallback = config.allow_hsm_fallback,
+            "Initializing CHINJU Credential Service with HCAL testing (mock signing)"
+        );
         Self {
+            config,
             credentials: Arc::new(RwLock::new(HashMap::new())),
             revoked: Arc::new(RwLock::new(Vec::new())),
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
@@ -90,11 +180,22 @@ impl CredentialServiceImpl {
 
     /// Create a new credential service with hardware-backed signing
     pub fn with_signing_service(signing_service: SigningService) -> Self {
+        Self::with_signing_service_and_config(signing_service, CredentialServiceConfig::default())
+    }
+
+    /// Create with signing service and explicit configuration
+    pub fn with_signing_service_and_config(
+        signing_service: SigningService,
+        config: CredentialServiceConfig,
+    ) -> Self {
         info!(
-            "Initializing CHINJU Credential Service with hardware-backed signing (trust level: {:?})",
-            signing_service.trust_level()
+            trust_level = ?signing_service.trust_level(),
+            security_level = ?config.min_security_level,
+            allow_fallback = config.allow_hsm_fallback,
+            "Initializing CHINJU Credential Service with hardware-backed signing"
         );
         Self {
+            config,
             credentials: Arc::new(RwLock::new(HashMap::new())),
             revoked: Arc::new(RwLock::new(Vec::new())),
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
@@ -113,11 +214,45 @@ impl CredentialServiceImpl {
         })
     }
 
-    /// Generate a mock ZKP verification result
-    fn verify_zkp_proof(&self, proof: &HumanityProof) -> bool {
-        // In production: actual ZKP verification
-        // For mock: check that proof data exists
-        !proof.zkp_data.is_empty()
+    /// Verify ZKP humanity proof
+    ///
+    /// # Security Levels (10.3.2)
+    /// - Mock/Software: Accept if proof data is non-empty (development only)
+    /// - HardwareStandard+: Requires actual ZKP verification (TODO: Phase 9.2)
+    ///
+    /// # TODO(security): ZKP Implementation (Phase 9.2)
+    /// - [ ] Add bellman or arkworks crate
+    /// - [ ] Define humanity proof circuit
+    /// - [ ] Implement Groth16 verifier
+    /// - [ ] Create test vectors
+    /// - Reference: patents/ja/c12_human_credential.md
+    fn verify_zkp_proof(&self, proof: &HumanityProof) -> Result<bool, Status> {
+        // TODO(zkp): Replace with actual ZKP verification when feature "zkp" is enabled
+        // #[cfg(feature = "zkp")]
+        // {
+        //     use crate::zkp::verify_humanity_proof;
+        //     return verify_humanity_proof(proof);
+        // }
+
+        if self.config.min_security_level >= SecurityLevel::HardwareStandard {
+            // Production: ZKP verification is mandatory but not yet implemented
+            // For now, log a warning and accept if proof data is non-empty
+            // TODO: This should return Err once ZKP is implemented
+            warn!(
+                security_level = ?self.config.min_security_level,
+                proof_type = ?ProofType::try_from(proof.proof_type).ok(),
+                "ZKP verification using MOCK implementation - NOT SECURE FOR PRODUCTION"
+            );
+            // Stricter check for production: require substantial proof data
+            if proof.zkp_data.len() < 32 {
+                return Err(Status::invalid_argument(
+                    "ZKP proof data too short for production security level",
+                ));
+            }
+        }
+
+        // Development/staging: accept if proof data exists
+        Ok(!proof.zkp_data.is_empty())
     }
 
     /// Verify degradation score is within human range
@@ -260,8 +395,15 @@ impl CredentialServiceImpl {
     }
 
     /// Generate signature for credential data
-    /// Uses hardware-backed signing if available, otherwise falls back to mock
-    async fn sign_credential_data(&self, data: &[u8]) -> (Signature, Option<HardwareAttestation>) {
+    ///
+    /// Uses hardware-backed signing if available.
+    /// Fallback behavior is controlled by `CredentialServiceConfig`:
+    /// - If `allow_hsm_fallback` is true: falls back to mock signature on HSM failure
+    /// - If `allow_hsm_fallback` is false: returns error on HSM failure (10.3.1)
+    async fn sign_credential_data(
+        &self,
+        data: &[u8],
+    ) -> Result<(Signature, Option<HardwareAttestation>), Status> {
         let now = Self::now();
 
         if let Some(ref signing_service) = self.signing_service {
@@ -269,8 +411,25 @@ impl CredentialServiceImpl {
 
             // Ensure issuer key exists
             if let Err(e) = svc.ensure_issuer_key().await {
-                warn!("Failed to ensure issuer key: {}, falling back to mock", e);
-                return self.mock_signature(now);
+                if self.config.allow_hsm_fallback {
+                    warn!(
+                        error = %e,
+                        "HSM key initialization failed, falling back to mock"
+                    );
+                    return Ok(self.mock_signature(now));
+                } else {
+                    // 10.3.1: No silent fallback in production
+                    error!(
+                        error = %e,
+                        security_level = ?self.config.min_security_level,
+                        "HSM key initialization failed and fallback is DISABLED"
+                    );
+                    return Err(Status::unavailable(format!(
+                        "HSM unavailable and fallback disabled: {}. \
+                         Set CHINJU_ALLOW_HSM_FALLBACK=true for development.",
+                        e
+                    )));
+                }
             }
 
             // Sign the data
@@ -282,15 +441,42 @@ impl CredentialServiceImpl {
                         trust_level = ?svc.trust_level(),
                         "Signed credential with hardware-backed key"
                     );
-                    (sig, attestation)
+                    Ok((sig, attestation))
                 }
                 Err(e) => {
-                    warn!("Hardware signing failed: {}, falling back to mock", e);
-                    self.mock_signature(now)
+                    if self.config.allow_hsm_fallback {
+                        warn!(
+                            error = %e,
+                            "Hardware signing failed, falling back to mock"
+                        );
+                        Ok(self.mock_signature(now))
+                    } else {
+                        // 10.3.1: No silent fallback in production
+                        error!(
+                            error = %e,
+                            security_level = ?self.config.min_security_level,
+                            "Hardware signing failed and fallback is DISABLED"
+                        );
+                        Err(Status::unavailable(format!(
+                            "Hardware signing failed and fallback disabled: {}",
+                            e
+                        )))
+                    }
                 }
             }
+        } else if self.config.min_security_level == SecurityLevel::Mock {
+            // Mock mode explicitly allowed
+            Ok(self.mock_signature(now))
         } else {
-            self.mock_signature(now)
+            // 10.3.1: Signing service required but not configured
+            error!(
+                security_level = ?self.config.min_security_level,
+                "No signing service configured but security level requires it"
+            );
+            Err(Status::internal(
+                "Signing service not configured. \
+                 Use CredentialServiceImpl::with_signing_service() for production.",
+            ))
         }
     }
 
@@ -392,7 +578,8 @@ impl CredentialServiceTrait for CredentialServiceImpl {
             .proof
             .ok_or_else(|| Status::invalid_argument("Proof is required"))?;
 
-        if !self.verify_zkp_proof(&proof) {
+        // 10.3.2: ZKP verification with security level check
+        if !self.verify_zkp_proof(&proof)? {
             return Ok(Response::new(SubmitProofResponse {
                 accepted: false,
                 message: "Proof verification failed".to_string(),
@@ -455,7 +642,8 @@ impl CredentialServiceTrait for CredentialServiceImpl {
         );
 
         // Sign the credential data using hardware-backed signing if available
-        let (issuer_signature, attestation) = self.sign_credential_data(sign_data.as_bytes()).await;
+        // 10.3.1: This may fail if HSM is unavailable and fallback is disabled
+        let (issuer_signature, attestation) = self.sign_credential_data(sign_data.as_bytes()).await?;
 
         let credential = HumanCredential {
             subject_id: pending.subject_id.clone(),
@@ -578,9 +766,9 @@ impl CredentialServiceTrait for CredentialServiceImpl {
         let existing =
             existing.ok_or_else(|| Status::not_found("Credential not found for renewal"))?;
 
-        // Verify new proof if provided
+        // 10.3.2: Verify new proof if provided
         if let Some(ref new_proof) = req.new_proof {
-            if !self.verify_zkp_proof(new_proof) {
+            if !self.verify_zkp_proof(new_proof)? {
                 return Err(Status::invalid_argument("New proof verification failed"));
             }
         }
@@ -794,12 +982,18 @@ impl CredentialServiceTrait for CredentialServiceImpl {
 
             // Try to find session from challenge_id
             if session_id.is_none() {
-                // Look up session by iterating active tests
-                let active = self.active_tests.read().await;
-                for (sid, _) in active.iter() {
-                    if let Some(sess) = self.test_manager.get_session(sid).await {
+                // DEADLOCK FIX (10.2.1): Copy session IDs before releasing lock
+                // to avoid holding lock during external call to test_manager
+                let session_ids: Vec<String> = {
+                    let active = self.active_tests.read().await;
+                    active.keys().cloned().collect()
+                }; // Lock released here
+
+                // Now safe to call test_manager without holding active_tests lock
+                for sid in session_ids {
+                    if let Some(sess) = self.test_manager.get_session(&sid).await {
                         if sess.challenges.iter().any(|(cid, _, _)| *cid == response.challenge_id) {
-                            session_id = Some(sid.clone());
+                            session_id = Some(sid);
                             break;
                         }
                     }

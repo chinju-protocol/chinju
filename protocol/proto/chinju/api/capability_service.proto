@@ -1,0 +1,29 @@
+// CHINJU Protocol - Capability Evaluation Service API (C14)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.capability;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/capability";
+option java_package = "org.chinju.protocol.api.capability";
+option java_multiple_files = true;
+
+import "chinju/capability.proto";
+
+// Multi-Dimensional Capability Evaluator Service
+service CapabilityEvaluator {
+  // Evaluate complexity
+  rpc EvaluateComplexity(chinju.capability.EvaluateComplexityRequest) returns (chinju.capability.ComplexityEvaluation);
+
+  // Verify integrity
+  rpc VerifyIntegrity(chinju.capability.VerifyIntegrityRequest) returns (chinju.capability.IntegrityVerification);
+
+  // Detect drift
+  rpc DetectDrift(chinju.capability.DetectDriftRequest) returns (chinju.capability.DriftDetection);
+
+  // Get evaluation summary
+  rpc GetEvaluationSummary(chinju.capability.GetEvaluationSummaryRequest) returns (chinju.capability.CapabilityEvaluationSummary);
+
+  // Direct stop
+  rpc DirectStop(chinju.capability.DirectStopRequest) returns (chinju.capability.DirectStopResponse);
+}

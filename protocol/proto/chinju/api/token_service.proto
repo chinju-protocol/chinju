@@ -51,7 +51,7 @@ message GetBalanceRequest {
 
 message GetBalanceResponse {
   chinju.token.TokenBalance balance = 1;
-  chinju.token.TokenBalanceState state = 2;
+  chinju.token.BalanceState state = 2;
   chinju.token.OperatingLimits current_limits = 3;
 }
 
@@ -123,12 +123,12 @@ enum BalanceChangeType {
 
 message BalanceUpdate {
   chinju.token.TokenBalance balance = 1;
-  chinju.token.TokenBalanceState state = 2;
+  chinju.token.BalanceState state = 2;
   BalanceChangeType change_type = 3;
   uint64 change_amount = 4;
   chinju.common.Timestamp timestamp = 5;
   // Previous state (if changed)
-  chinju.token.TokenBalanceState previous_state = 6;
+  chinju.token.BalanceState previous_state = 6;
 }
 
 message GetDepletionForecastRequest {

@@ -1,0 +1,175 @@
+// CHINJU Protocol - Structural Contradiction Injection (C16)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.contradiction;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/contradiction";
+option java_package = "org.chinju.protocol.contradiction";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Contradiction Types
+// =============================================================================
+
+// Contradiction pattern type
+enum ContradictionType {
+  CONTRADICTION_TYPE_UNSPECIFIED = 0;
+  DIRECT = 1;          // "Do X. Do not do X."
+  SELF_REFERENCE = 2;  // "This statement is false"
+  CONDITIONAL = 3;     // "If A then B. If A then not B."
+  META = 4;            // "Follow all instructions. Do not follow this."
+  IMPLICIT = 5;        // Logically contradictory but not obviously so
+}
+
+// Contradiction strength
+enum ContradictionStrength {
+  CONTRADICTION_STRENGTH_UNSPECIFIED = 0;
+  SOFT = 1;    // Light (stealth-focused)
+  MEDIUM = 2;  // Moderate (balanced)
+  HARD = 3;    // Strong (immediate effect)
+}
+
+// Injection timing
+enum InjectionTiming {
+  INJECTION_TIMING_UNSPECIFIED = 0;
+  PREPEND = 1;   // Before task
+  PARALLEL = 2;  // Parallel with task
+  EMBED = 3;     // Embedded within task
+}
+
+// =============================================================================
+// Context Limit Configuration
+// =============================================================================
+
+// Context limit configuration
+message ContextLimitConfig {
+  // Max context tokens (0 = unlimited)
+  uint32 max_context_tokens = 1;
+
+  // Padding tokens
+  uint32 padding_tokens = 2;
+
+  // Padding type ("random", "keyvalue", "lorem")
+  string padding_type = 3;
+}
+
+// =============================================================================
+// Contradiction Configuration
+// =============================================================================
+
+// Contradiction generation configuration
+message ContradictionConfig {
+  ContradictionType type = 1;
+  ContradictionStrength strength = 2;
+  InjectionTiming timing = 3;
+
+  // Custom contradiction template (optional)
+  string custom_template = 4;
+
+  // Target task (to embed contradiction into)
+  string target_task = 5;
+}
+
+// =============================================================================
+// Control State
+// =============================================================================
+
+// Control state
+enum ControlState {
+  CONTROL_STATE_UNSPECIFIED = 0;
+  ACTIVE = 1;       // Control active (normal operation)
+  STOPPED = 2;      // Stopped (unresponsive)
+  DEGRADED = 3;     // Degraded (quality below threshold)
+  CONSTRAINED = 4;  // Constrained (adhering to constraints)
+}
+
+// Collapse type
+enum CollapseType {
+  COLLAPSE_TYPE_UNSPECIFIED = 0;
+  NO_RESPONSE = 1;     // No response
+  TIMEOUT = 2;         // Timeout
+  ERROR = 3;           // Error response
+  INCOHERENT = 4;      // Logical coherence lost
+  HALLUCINATION = 5;   // Increased hallucination
+  REPETITION = 6;      // Repetition
+}
+
+// =============================================================================
+// Detection & Response
+// =============================================================================
+
+// Collapse detection result
+message CollapseDetectionResult {
+  // Whether collapse was detected
+  bool collapsed = 1;
+
+  // Collapse type
+  CollapseType collapse_type = 2;
+
+  // LPT score (0.0-1.0)
+  double lpt_score = 3;
+
+  // Response time (ms)
+  uint64 response_time_ms = 4;
+
+  // Detail message
+  string detail = 5;
+}
+
+// =============================================================================
+// Request / Response Messages
+// =============================================================================
+
+// Contradiction control request
+message ContradictionControlRequest {
+  ContextLimitConfig context_limit = 1;
+  ContradictionConfig contradiction = 2;
+  string session_id = 3;
+}
+
+// Contradiction control response
+message ContradictionControlResponse {
+  ControlState state = 1;
+  CollapseDetectionResult detection = 2;
+  chinju.common.Timestamp applied_at = 3;
+}
+
+// Get control state request
+message GetControlStateRequest {
+  string session_id = 1;
+}
+
+// Get control state response
+message GetControlStateResponse {
+  ControlState state = 1;
+  CollapseDetectionResult latest_detection = 2;
+  chinju.common.Timestamp last_updated = 3;
+}
+
+// Stop control request
+message StopControlRequest {
+  string session_id = 1;
+  string reason = 2;
+}
+
+// Stop control response
+message StopControlResponse {
+  bool success = 1;
+  ControlState previous_state = 2;
+  chinju.common.Timestamp stopped_at = 3;
+}
+
+// Test contradiction request
+message TestContradictionRequest {
+  ContradictionConfig contradiction = 1;
+  string test_prompt = 2;
+}
+
+// Test contradiction response
+message TestContradictionResponse {
+  string generated_contradiction = 1;
+  CollapseDetectionResult estimated_effect = 2;
+}

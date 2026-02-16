@@ -1,0 +1,35 @@
+// CHINJU Protocol - Value Neuron Monitoring Service API (C15)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.value_neuron;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/value_neuron";
+option java_package = "org.chinju.protocol.api.value_neuron";
+option java_multiple_files = true;
+
+import "chinju/value_neuron.proto";
+
+// Value Neuron Monitor Service
+service ValueNeuronMonitor {
+  // Identify value neurons
+  rpc IdentifyValueNeurons(chinju.value_neuron.IdentifyRequest) returns (stream chinju.value_neuron.ValueNeuronInfo);
+
+  // Get RPE reading
+  rpc GetRpeReading(chinju.value_neuron.RpeRequest) returns (chinju.value_neuron.RpeReading);
+
+  // Get RPE history
+  rpc GetRpeHistory(chinju.value_neuron.RpeHistoryRequest) returns (stream chinju.value_neuron.RpeReading);
+
+  // Estimate intent
+  rpc EstimateIntent(chinju.value_neuron.IntentRequest) returns (chinju.value_neuron.IntentEstimation);
+
+  // Diagnose reward system health
+  rpc DiagnoseHealth(chinju.value_neuron.DiagnoseRequest) returns (chinju.value_neuron.RewardSystemHealth);
+
+  // Get monitoring summary
+  rpc GetMonitoringSummary(chinju.value_neuron.SummaryRequest) returns (chinju.value_neuron.ValueNeuronMonitoringSummary);
+
+  // Intervene
+  rpc Intervene(chinju.value_neuron.InterventionRequest) returns (chinju.value_neuron.InterventionResponse);
+}

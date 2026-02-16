@@ -2,6 +2,8 @@
 
 > A safety layer that **ensures human control over AI** through physical laws and information theory
 
+**Status**: Alpha (No security audit, not recommended for production use)
+
 [日本語版 (README.md)](./README.md)
 
 ---
@@ -9,6 +11,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Scientific Basis](#scientific-basis)
 - [Getting Started](#getting-started)
 - [Patent List](#patent-list)
 - [Patent Status](#patent-status)
@@ -24,8 +27,25 @@
 
 ## Overview
 
-CHINJU consists of 15 patents forming an AI safety layer.
+CHINJU consists of 17 patents forming an AI safety layer.
 Based on the premise that "software alone cannot stop AI," it prevents AI runaway through **physical irreversibility** and **mathematical principles**.
+
+---
+
+## Scientific Basis
+
+The theoretical and empirical foundations of this framework have been validated in the following papers:
+
+| Paper | DOI |
+|:--|:--|
+| The Ugentropic Survival Principle | [10.5281/zenodo.18637768](https://zenodo.org/records/18637768) |
+| CHINJU Framework | [10.5281/zenodo.18603195](https://zenodo.org/records/18603195) |
+
+**Key Results:**
+- **Lean 4 Formal Verification**: 210+ theorems, sorry=0 (machine-verified)
+- **8-Domain Empirical Validation**: Biology, Corporate, Finance, Politics, Linguistics, Software, Genetics, LLM
+- **12/12 Attack Patterns**: All Blocked (remaining is nation-state level coordination)
+- **Survival Equation Integration**: All thresholds derived from S = N_eff × (μ/μ_c) × e^{-δ}
 
 ---
 
@@ -61,6 +81,10 @@ Software-only countermeasures (such as Constitutional AI) are insufficient. **A 
 | Prevent unauthorized learning | C7 (Learning Refusal) |
 | Fix metric definitions | C8 (Definition Registry) |
 | Comply with regional regulations | C9 (Policy Pack) |
+| Evaluate LLM capability limits multi-dimensionally | C14 (Multi-Dimensional Capability Evaluation) |
+| Monitor AI internal motivation | C15 (Value Neuron Monitoring) |
+| Structurally control/stop LLM | C16 (Structural Contradiction Injection) |
+| Suppress harmful information at Attention level | C17 (Survival-Weighted Attention) |
 
 ---
 
@@ -93,6 +117,8 @@ Software-only countermeasures (such as Constitutional AI) are insufficient. **A 
 | **C13** | AI Model Confinement System | Prevents physical/informational leakage, safely confines models | TEE, Data Diode |
 | **C14** | Inference System Multi-Dimensional Capability Evaluation System | Multi-dimensional capability limit evaluation via tokens, attention patterns, computation graphs | ZKP, BFT |
 | **C15** | AI Model Internal Value Representation Monitoring System | Monitors value neurons and RPE to detect reward hacking | Neural Activation Monitoring |
+| **C16** | Structural Contradiction Injection LLM Control System | Controls LLM via multiplicative interaction of context load and structural contradictions | API Integration |
+| **C17** | Survival-Weighted Attention Mechanism System | Embeds survival scores into Attention to automatically suppress harmful information | Inference Pipeline |
 
 ---
 
@@ -117,6 +143,8 @@ All patents are filed in Japan and are scheduled for PCT international applicati
 | C13 | AI Model Confinement System and Physical/Informational Leakage Prevention Method | Patent Pending (Japan App. No. 2026-015027) |
 | C14 | Inference System Multi-Dimensional Capability Evaluation and Integrity Verification System | Patent Pending |
 | C15 | AI Model Internal Value Representation Monitoring System and Intent Estimation Method Based on Reward Prediction Error | Patent Pending |
+| C16 | Structural Contradiction Injection LLM Control System and Capability Limitation Method | Draft (Filing Planned) |
+| C17 | Survival-Weighted Attention Mechanism System and Language Model Safety Enhancement Method | Draft (Filing Planned) |
 
 ## Architecture Overview
 

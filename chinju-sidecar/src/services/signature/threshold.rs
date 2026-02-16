@@ -8,7 +8,7 @@ use chinju_core::hardware::threshold::{FrostCoordinator, FrostError};
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Threshold verification errors
 #[derive(Debug, Error)]

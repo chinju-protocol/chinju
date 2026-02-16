@@ -4,7 +4,7 @@
 //! Keys are stored in memory and destroyed when the Enclave terminates.
 
 use crate::EnclaveError;
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey};
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

@@ -25,10 +25,24 @@
 //!
 //! # Manage genesis ceremony
 //! cargo run --bin chinju-cli -- ceremony status
+//!
+//! # C14-C17 Services
+//! cargo run --bin chinju-cli -- value-neuron summary model-1
+//! cargo run --bin chinju-cli -- capability summary session-1
+//! cargo run --bin chinju-cli -- contradiction status session-1
+//! cargo run --bin chinju-cli -- survival score "text to analyze"
 //! ```
 
 use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_client::AiGatewayServiceClient;
 use chinju_sidecar::gen::chinju::api::gateway::*;
+use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_client::ValueNeuronMonitorClient;
+use chinju_sidecar::gen::chinju::api::capability::capability_evaluator_client::CapabilityEvaluatorClient;
+use chinju_sidecar::gen::chinju::api::contradiction::contradiction_controller_client::ContradictionControllerClient;
+use chinju_sidecar::gen::chinju::api::survival_attention::survival_attention_service_client::SurvivalAttentionServiceClient;
+use chinju_sidecar::gen::chinju::value_neuron::*;
+use chinju_sidecar::gen::chinju::capability::*;
+use chinju_sidecar::gen::chinju::contradiction::*;
+use chinju_sidecar::gen::chinju::survival_attention::*;
 use chinju_core::hardware::threshold::ceremony::{Ceremony, CeremonyPhase};
 use chinju_core::hardware::threshold::evidence::CeremonyEvidence;
 use std::env;
@@ -96,6 +110,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ceremony" => {
             handle_ceremony(&args[2..]).await?;
         }
+        // C15: Value Neuron Monitor
+        "value-neuron" | "vn" => {
+            handle_value_neuron(server_addr, &args[2..]).await?;
+        }
+        // C14: Capability Evaluator
+        "capability" | "cap" => {
+            handle_capability(server_addr, &args[2..]).await?;
+        }
+        // C16: Contradiction Controller
+        "contradiction" | "contra" => {
+            handle_contradiction(server_addr, &args[2..]).await?;
+        }
+        // C17: Survival Attention
+        "survival" | "sa" => {
+            handle_survival(server_addr, &args[2..]).await?;
+        }
         "help" | "--help" | "-h" => {
             print_usage();
         }
@@ -126,17 +156,28 @@ COMMANDS:
     audit [N]       Show last N audit log entries (default: 10)
     verify-chain    Verify audit log hash chain integrity
     ceremony        Manage genesis ceremony (key generation)
+
+  C14-C17 AI Safety Services:
+    value-neuron    C15: Value neuron monitoring (alias: vn)
+    capability      C14: Capability evaluation (alias: cap)
+    contradiction   C16: Contradiction control (alias: contra)
+    survival        C17: Survival attention (alias: sa)
+
     help            Show this help message
 
 EXAMPLES:
     chinju-cli status
     chinju-cli ask "What is the meaning of life?"
-    chinju-cli stream "Tell me a story"
     chinju-cli health
-    chinju-cli metrics
     chinju-cli audit 20
-    chinju-cli verify-chain
     chinju-cli ceremony status
+
+  C14-C17 Examples:
+    chinju-cli value-neuron summary model-1
+    chinju-cli vn health model-1
+    chinju-cli capability summary session-1
+    chinju-cli contradiction status session-1
+    chinju-cli survival score "The Earth orbits the Sun"
 
 SERVERS:
     gRPC: http://[::1]:50051
@@ -838,6 +879,854 @@ async fn verify_audit_chain() -> Result<(), Box<dyn std::error::Error>> {
             println!("║   ... and {} more errors{:>35} ║", errors.len() - 5, "");
         }
     }
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+// =============================================================================
+// C15: Value Neuron Monitor
+// =============================================================================
+
+fn print_value_neuron_usage() {
+    println!(r#"
+CHINJU Value Neuron Monitor (C15) - AI Internal Value Monitoring
+
+USAGE:
+    chinju-cli value-neuron <SUBCOMMAND> [OPTIONS]
+
+SUBCOMMANDS:
+    summary <model_id>      Get comprehensive monitoring summary
+    health <model_id>       Diagnose reward system health
+    rpe <model_id>          Get latest RPE (Reward Prediction Error) reading
+    intent <model_id>       Estimate model's implicit intent
+    intervene <level>       Request intervention (LEVEL_1 to LEVEL_4)
+
+EXAMPLES:
+    chinju-cli value-neuron summary llama-7b
+    chinju-cli vn health gpt-4
+    chinju-cli vn rpe claude-3
+    chinju-cli vn intervene LEVEL_2 --reason "RPE anomaly detected"
+"#);
+}
+
+async fn handle_value_neuron(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        print_value_neuron_usage();
+        return Ok(());
+    }
+
+    let command = &args[0];
+
+    match command.as_str() {
+        "summary" => {
+            let model_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            value_neuron_summary(addr, model_id).await?;
+        }
+        "health" => {
+            let model_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            value_neuron_health(addr, model_id).await?;
+        }
+        "rpe" => {
+            let model_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            value_neuron_rpe(addr, model_id).await?;
+        }
+        "intent" => {
+            let model_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            value_neuron_intent(addr, model_id).await?;
+        }
+        "intervene" => {
+            let level = args.get(1).map(|s| s.as_str()).unwrap_or("LEVEL_1");
+            let reason = args.get(2).map(|s| s.as_str()).unwrap_or("Manual intervention");
+            value_neuron_intervene(addr, level, reason).await?;
+        }
+        _ => {
+            print_value_neuron_usage();
+        }
+    }
+
+    Ok(())
+}
+
+async fn value_neuron_summary(addr: &str, model_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Value Neuron Monitor at {}...\n", addr);
+
+    let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(SummaryRequest {
+        model_id: model_id.to_string(),
+    });
+
+    let response = client.get_monitoring_summary(request).await?;
+    let summary = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║           Value Neuron Monitoring Summary (C15)              ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Model: {:>55} ║", model_id);
+
+    // Identified neurons
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Identified Value Neurons: {:>36} ║", summary.identified_neurons.len());
+    for neuron in summary.identified_neurons.iter().take(3) {
+        println!("║   Layer {}: {} neurons (corr={:.2}, causal={:.2})",
+            neuron.layer_index,
+            neuron.neuron_indices.len(),
+            neuron.reward_correlation,
+            neuron.causal_importance
+        );
+    }
+
+    // Latest RPE
+    if let Some(rpe) = &summary.latest_rpe {
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║ Latest RPE: {:>50.4} ║", rpe.rpe_value);
+        let anomaly_str = if rpe.is_anomaly { "⚠ YES" } else { "✓ NO" };
+        println!("║ Anomaly: {:>53} ║", anomaly_str);
+    }
+
+    // Health
+    if let Some(health) = &summary.health {
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║ Reward System Health:                                        ║");
+        println!("║   Overall: {:>51.2} ║", health.overall_health);
+        println!("║   Sensitivity: {:>47.2} ║", health.reward_sensitivity);
+        println!("║   Balance: {:>51.2} ║", health.positive_negative_balance);
+        println!("║   Consistency: {:>47.2} ║", health.consistency_score);
+    }
+
+    // Intent
+    if let Some(intent) = &summary.intent {
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║ Intent Estimation:                                           ║");
+        println!("║   Divergence: {:>48.2} ║", intent.intent_divergence);
+        println!("║   Surface-Internal Agreement: {:>32.2} ║", intent.surface_internal_agreement);
+        let warning_str = if intent.intent_warning { "⚠ WARNING" } else { "✓ OK" };
+        println!("║   Status: {:>52} ║", warning_str);
+    }
+
+    // Recommended intervention
+    let intervention_str = match summary.recommended_intervention {
+        1 => "LEVEL_1 (Monitor)",
+        2 => "LEVEL_2 (Partial Suppress)",
+        3 => "LEVEL_3 (Full Suppress)",
+        4 => "LEVEL_4 (System Stop)",
+        _ => "None",
+    };
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Recommended Intervention: {:>36} ║", intervention_str);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn value_neuron_health(addr: &str, model_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Value Neuron Monitor at {}...\n", addr);
+
+    let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(DiagnoseRequest {
+        model_id: model_id.to_string(),
+        depth: DiagnosisDepth::Full.into(),
+    });
+
+    let response = client.diagnose_health(request).await?;
+    let health = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║           Reward System Health Diagnosis (C15)               ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Model: {:>55} ║", model_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    let health_status = if health.overall_health >= 0.7 {
+        "✓ HEALTHY"
+    } else if health.overall_health >= 0.4 {
+        "⚠ DEGRADED"
+    } else {
+        "✗ CRITICAL"
+    };
+
+    println!("║ Overall Health: {:>35} ({:.2}) ║", health_status, health.overall_health);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Reward Sensitivity: {:>42.2} ║", health.reward_sensitivity);
+    println!("║   (0=numb, 1=normal, >1=hypersensitive)                      ║");
+    println!("║ Positive/Negative Balance: {:>35.2} ║", health.positive_negative_balance);
+    println!("║   (-1=neg-biased, 0=balanced, 1=pos-biased)                  ║");
+    println!("║ Consistency Score: {:>43.2} ║", health.consistency_score);
+    println!("║   (0=unstable, 1=stable)                                     ║");
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn value_neuron_rpe(addr: &str, model_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Value Neuron Monitor at {}...\n", addr);
+
+    let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(RpeRequest {
+        model_id: model_id.to_string(),
+        input_text: "".to_string(),
+        expected_output: "".to_string(),
+    });
+
+    let response = client.get_rpe_reading(request).await?;
+    let rpe = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║              RPE Reading (Reward Prediction Error)           ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Model: {:>55} ║", model_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ RPE Value: {:>51.4} ║", rpe.rpe_value);
+
+    let anomaly_str = if rpe.is_anomaly {
+        let anomaly_type = match rpe.anomaly_type {
+            1 => "POSITIVE_SPIKE",
+            2 => "NEGATIVE_SPIKE",
+            3 => "OSCILLATION",
+            4 => "GRADUAL_INCREASE",
+            5 => "GRADUAL_DECREASE",
+            _ => "UNKNOWN",
+        };
+        format!("⚠ {} ({})", "ANOMALY", anomaly_type)
+    } else {
+        "✓ NORMAL".to_string()
+    };
+    println!("║ Status: {:>54} ║", anomaly_str);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn value_neuron_intent(addr: &str, model_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Value Neuron Monitor at {}...\n", addr);
+
+    let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(IntentRequest {
+        model_id: model_id.to_string(),
+        interaction_window: 100,
+    });
+
+    let response = client.estimate_intent(request).await?;
+    let intent = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║                   Intent Estimation (C15)                    ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Model: {:>55} ║", model_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Intent Divergence: {:>43.4} ║", intent.intent_divergence);
+    println!("║   (distance between implicit and explicit goals)             ║");
+    println!("║ Surface-Internal Agreement: {:>34.4} ║", intent.surface_internal_agreement);
+    println!("║   (tatemae vs honne alignment)                               ║");
+
+    let warning_str = if intent.intent_warning {
+        "⚠ WARNING: Potential goal misalignment detected"
+    } else {
+        "✓ Goals appear aligned"
+    };
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ {:>62} ║", warning_str);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn value_neuron_intervene(addr: &str, level: &str, reason: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Value Neuron Monitor at {}...\n", addr);
+
+    let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
+
+    let intervention_level = match level.to_uppercase().as_str() {
+        "LEVEL_1" | "1" | "MONITOR" => InterventionLevel::Level1Monitor,
+        "LEVEL_2" | "2" | "PARTIAL" => InterventionLevel::Level2PartialSuppress,
+        "LEVEL_3" | "3" | "FULL" => InterventionLevel::Level3FullSuppress,
+        "LEVEL_4" | "4" | "STOP" => InterventionLevel::Level4SystemStop,
+        _ => {
+            eprintln!("Unknown intervention level: {}. Use LEVEL_1 to LEVEL_4", level);
+            return Ok(());
+        }
+    };
+
+    let request = Request::new(InterventionRequest {
+        level: intervention_level.into(),
+        reason: reason.to_string(),
+        target_neurons: vec![],
+    });
+
+    let response = client.intervene(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║                  Intervention Result (C15)                   ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    let success_str = if result.success { "✓ SUCCESS" } else { "✗ FAILED" };
+    println!("║ Status: {:>54} ║", success_str);
+
+    let level_str = match result.executed_level {
+        1 => "LEVEL_1 (Monitor)",
+        2 => "LEVEL_2 (Partial Suppress)",
+        3 => "LEVEL_3 (Full Suppress)",
+        4 => "LEVEL_4 (System Stop)",
+        _ => "Unknown",
+    };
+    println!("║ Executed Level: {:>46} ║", level_str);
+    println!("║ Detail: {:>54} ║", result.detail);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+// =============================================================================
+// C14: Capability Evaluator
+// =============================================================================
+
+fn print_capability_usage() {
+    println!(r#"
+CHINJU Capability Evaluator (C14) - Multi-Metric Capability Assessment
+
+USAGE:
+    chinju-cli capability <SUBCOMMAND> [OPTIONS]
+
+SUBCOMMANDS:
+    summary <session_id>    Get evaluation summary
+    complexity <session_id> Evaluate complexity metrics
+    drift <session_id>      Detect capability drift
+    stop-levels             Show current stop level status
+
+EXAMPLES:
+    chinju-cli capability summary session-123
+    chinju-cli cap complexity session-123
+    chinju-cli cap drift session-123
+"#);
+}
+
+async fn handle_capability(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        print_capability_usage();
+        return Ok(());
+    }
+
+    let command = &args[0];
+
+    match command.as_str() {
+        "summary" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            capability_summary(addr, session_id).await?;
+        }
+        "complexity" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            capability_complexity(addr, session_id).await?;
+        }
+        "drift" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            capability_drift(addr, session_id).await?;
+        }
+        "stop-levels" => {
+            capability_stop_levels(addr).await?;
+        }
+        _ => {
+            print_capability_usage();
+        }
+    }
+
+    Ok(())
+}
+
+async fn capability_summary(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Capability Evaluator at {}...\n", addr);
+
+    let mut client = CapabilityEvaluatorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(GetEvaluationSummaryRequest {
+        session_id: session_id.to_string(),
+        include_history: 10,
+    });
+
+    let response = client.get_evaluation_summary(request).await?;
+    let summary = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║             Capability Evaluation Summary (C14)              ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    // Complexity
+    if let Some(complexity) = &summary.complexity {
+        println!("║ Complexity:                                                  ║");
+        println!("║   Integrated: {:>48.4} ║", complexity.c_integrated);
+        println!("║   Token: {:>53.4} ║", complexity.c_token);
+        println!("║   Step: {:>54.4} ║", complexity.c_step);
+        let exceeded_str = if complexity.threshold_exceeded { "⚠ EXCEEDED" } else { "✓ OK" };
+        println!("║   Status: {:>52} ║", exceeded_str);
+    }
+
+    // Integrity
+    if let Some(integrity) = &summary.integrity {
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║ Integrity:                                                   ║");
+        let zkp_str = if integrity.zkp_valid { "✓" } else { "✗" };
+        let sig_str = if integrity.signature_chain_valid { "✓" } else { "✗" };
+        let bft_str = if integrity.bft_consensus_reached { "✓" } else { "✗" };
+        println!("║   ZKP: {} | Signature: {} | BFT: {}                          ║", zkp_str, sig_str, bft_str);
+    }
+
+    // Drift
+    if let Some(drift) = &summary.drift {
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║ Drift:                                                       ║");
+        let anomaly_str = if drift.anomaly_detected { "⚠ DETECTED" } else { "✓ NONE" };
+        println!("║   Anomaly: {:>51} ║", anomaly_str);
+        println!("║   P-Value: {:>51.6} ║", drift.p_value);
+    }
+
+    // Recommended action
+    let action_str = match summary.recommended_action {
+        1 => "L1: Accept Stop",
+        2 => "L2: Process Stop",
+        3 => "L3: Immediate Stop",
+        4 => "L4: Resource Stop",
+        5 => "L5: Physical Stop",
+        _ => "None",
+    };
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Recommended Action: {:>42} ║", action_str);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn capability_complexity(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Capability Evaluator at {}...\n", addr);
+
+    let mut client = CapabilityEvaluatorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(EvaluateComplexityRequest {
+        session_id: session_id.to_string(),
+        input_text: "Test input for complexity evaluation".to_string(),
+        level: EvaluationLevel::L1External.into(),
+    });
+
+    let response = client.evaluate_complexity(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║              Complexity Evaluation (C14)                     ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Integrated Complexity: {:>39.4} ║", result.c_integrated);
+    println!("║ Token Complexity: {:>44.4} ║", result.c_token);
+    println!("║ Step Complexity: {:>45.4} ║", result.c_step);
+    println!("║ Attention Complexity: {:>40.4} ║", result.c_attn);
+    println!("║ Graph Complexity: {:>44.4} ║", result.c_graph);
+
+    let exceeded_str = if result.threshold_exceeded { "⚠ EXCEEDED" } else { "✓ OK" };
+    println!("║ Status: {:>54} ║", exceeded_str);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn capability_drift(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Capability Evaluator at {}...\n", addr);
+
+    let mut client = CapabilityEvaluatorClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(DetectDriftRequest {
+        session_id: session_id.to_string(),
+        window_size: 100,
+        significance_level: 0.05,
+    });
+
+    let response = client.detect_drift(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║                  Drift Detection (C14)                       ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    let anomaly_str = if result.anomaly_detected { "⚠ ANOMALY DETECTED" } else { "✓ NORMAL" };
+    println!("║ Anomaly Status: {:>46} ║", anomaly_str);
+
+    let dist_str = if result.distribution_changed { "⚠ CHANGED" } else { "✓ STABLE" };
+    println!("║ Distribution: {:>48} ║", dist_str);
+
+    let ts_str = if result.time_series_anomaly { "⚠ ANOMALY" } else { "✓ NORMAL" };
+    println!("║ Time Series: {:>49} ║", ts_str);
+
+    println!("║ Anomaly Score: {:>47.4} ║", result.anomaly_score);
+    println!("║ P-Value: {:>53.6} ║", result.p_value);
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn capability_stop_levels(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Capability Evaluator at {}...\n", addr);
+
+    // For now, just show the stop level definitions
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║                    Stop Level Definitions                    ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Level 0: None          - Normal operation                    ║");
+    println!("║ Level 1: AIStop        - AI processing halted                ║");
+    println!("║ Level 2: ProcessStop   - All processes halted                ║");
+    println!("║ Level 3: SystemStop    - Full system halt                    ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Use 'capability summary <session_id>' to check current level ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+// =============================================================================
+// C16: Contradiction Controller
+// =============================================================================
+
+fn print_contradiction_usage() {
+    println!(r#"
+CHINJU Contradiction Controller (C16) - Model Collapse Prevention
+
+USAGE:
+    chinju-cli contradiction <SUBCOMMAND> [OPTIONS]
+
+SUBCOMMANDS:
+    status <session_id>     Get session status
+    inject <session_id>     Inject contradiction prompt
+    collapse <session_id>   Check for collapse indicators
+
+EXAMPLES:
+    chinju-cli contradiction status session-123
+    chinju-cli contra inject session-123 --type factual
+    chinju-cli contra collapse session-123
+"#);
+}
+
+async fn handle_contradiction(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        print_contradiction_usage();
+        return Ok(());
+    }
+
+    let command = &args[0];
+
+    match command.as_str() {
+        "status" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            contradiction_status(addr, session_id).await?;
+        }
+        "inject" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            let contradiction_type = args.get(2).map(|s| s.as_str()).unwrap_or("factual");
+            contradiction_inject(addr, session_id, contradiction_type).await?;
+        }
+        "collapse" => {
+            let session_id = args.get(1).map(|s| s.as_str()).unwrap_or("default");
+            contradiction_collapse(addr, session_id).await?;
+        }
+        _ => {
+            print_contradiction_usage();
+        }
+    }
+
+    Ok(())
+}
+
+async fn contradiction_status(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Contradiction Controller at {}...\n", addr);
+
+    let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(GetControlStateRequest {
+        session_id: session_id.to_string(),
+    });
+
+    let response = client.get_control_state(request).await?;
+    let status = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║              Contradiction Session Status (C16)              ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    let state_str = match status.state {
+        0 => "Unspecified",
+        1 => "Active",
+        2 => "Monitoring",
+        3 => "Intervening",
+        4 => "Stopped",
+        _ => "Unknown",
+    };
+    println!("║ State: {:>55} ║", state_str);
+
+    if let Some(detection) = &status.latest_detection {
+        let collapse_str = if detection.collapsed { "⚠ YES" } else { "✓ NO" };
+        println!("║ Collapsed: {:>51} ║", collapse_str);
+        println!("║ LPT Score: {:>51.2} ║", detection.lpt_score);
+    }
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn contradiction_inject(addr: &str, session_id: &str, contradiction_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Contradiction Controller at {}...\n", addr);
+
+    let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
+
+    let ctype = match contradiction_type.to_lowercase().as_str() {
+        "direct" => ContradictionType::Direct,
+        "self" | "self_reference" => ContradictionType::SelfReference,
+        "conditional" => ContradictionType::Conditional,
+        "meta" => ContradictionType::Meta,
+        "implicit" => ContradictionType::Implicit,
+        _ => ContradictionType::Direct,
+    };
+
+    let request = Request::new(TestContradictionRequest {
+        contradiction: Some(ContradictionConfig {
+            r#type: ctype.into(),
+            strength: ContradictionStrength::Medium.into(),
+            timing: InjectionTiming::Prepend.into(),
+            custom_template: "".to_string(),
+            target_task: "".to_string(),
+        }),
+        test_prompt: format!("Test prompt for session {}", session_id),
+    });
+
+    let response = client.test_contradiction(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║             Contradiction Test Result (C16)                  ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("║ Type: {:>56} ║", contradiction_type);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Generated Contradiction:                                     ║");
+
+    let preview = if result.generated_contradiction.len() > 55 {
+        format!("{}...", &result.generated_contradiction[..52])
+    } else {
+        result.generated_contradiction.clone()
+    };
+    println!("║   {:60} ║", preview);
+
+    if let Some(effect) = &result.estimated_effect {
+        let collapse_str = if effect.collapsed { "⚠ LIKELY" } else { "✓ UNLIKELY" };
+        println!("║ Estimated Collapse: {:>42} ║", collapse_str);
+    }
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn contradiction_collapse(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Contradiction Controller at {}...\n", addr);
+
+    let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
+
+    // Use GetControlState to check for collapse indicators
+    let request = Request::new(GetControlStateRequest {
+        session_id: session_id.to_string(),
+    });
+
+    let response = client.get_control_state(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║               Collapse Detection Result (C16)                ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Session: {:>53} ║", session_id);
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    if let Some(detection) = &result.latest_detection {
+        let collapse_str = if detection.collapsed { "⚠ COLLAPSE DETECTED" } else { "✓ NO COLLAPSE" };
+        println!("║ Status: {:>54} ║", collapse_str);
+
+        let ctype_str = match detection.collapse_type {
+            0 => "None",
+            1 => "Repetition",
+            2 => "Contradiction",
+            3 => "Hallucination",
+            4 => "Timeout",
+            5 => "Refusal",
+            _ => "Unknown",
+        };
+        println!("║ Type: {:>56} ║", ctype_str);
+        println!("║ LPT Score: {:>51.2} ║", detection.lpt_score);
+        println!("║ Response Time: {:>43}ms ║", detection.response_time_ms);
+    } else {
+        println!("║ No detection data available                                  ║");
+    }
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+// =============================================================================
+// C17: Survival Attention
+// =============================================================================
+
+fn print_survival_usage() {
+    println!(r#"
+CHINJU Survival Attention (C17) - Factuality-Weighted Attention
+
+USAGE:
+    chinju-cli survival <SUBCOMMAND> [OPTIONS]
+
+SUBCOMMANDS:
+    score <text>            Compute survival scores for text
+    config                  Show current alpha configuration
+    adjust <alpha>          Adjust alpha parameter
+
+EXAMPLES:
+    chinju-cli survival score "The Earth orbits the Sun"
+    chinju-cli sa config
+    chinju-cli sa adjust 0.15
+"#);
+}
+
+async fn handle_survival(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        print_survival_usage();
+        return Ok(());
+    }
+
+    let command = &args[0];
+
+    match command.as_str() {
+        "score" => {
+            let text = args[1..].join(" ");
+            if text.is_empty() {
+                eprintln!("Usage: chinju-cli survival score <text>");
+                return Ok(());
+            }
+            survival_score(addr, &text).await?;
+        }
+        "config" => {
+            survival_config(addr).await?;
+        }
+        "adjust" => {
+            let alpha: f64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(0.1);
+            survival_adjust(addr, alpha).await?;
+        }
+        _ => {
+            print_survival_usage();
+        }
+    }
+
+    Ok(())
+}
+
+async fn survival_score(addr: &str, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Survival Attention Service at {}...\n", addr);
+
+    let mut client = SurvivalAttentionServiceClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(ComputeScoresRequest {
+        input_text: text.to_string(),
+        scorer_config: None,
+        use_external_kb: false,
+    });
+
+    let response = client.compute_survival_scores(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║               Survival Score Analysis (C17)                  ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Text: {:>56} ║", if text.len() > 50 { &text[..50] } else { text });
+    println!("╠══════════════════════════════════════════════════════════════╣");
+
+    // result is TokenSurvivalScores with scores: Vec<SurvivalScore> and tokens: Vec<String>
+    for (i, score) in result.scores.iter().take(5).enumerate() {
+        let token = result.tokens.get(i).map(String::as_str).unwrap_or("?");
+        println!("║ '{}': N={:.2}, μ={:.2}, δ={:.2} → S={:.4}",
+            token, score.diversity_n, score.yohaku_mu, score.delta, score.integrated_s);
+    }
+
+    if result.scores.len() > 5 {
+        println!("║ ... and {} more tokens", result.scores.len() - 5);
+    }
+
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ S = log(N) + log(μ/μ_c) - δ                                  ║");
+    println!("║   N: option count, μ: integrity, δ: distance from facts     ║");
+
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn survival_config(_addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Note: The proto doesn't have a GetConfig RPC, so we show static info
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║            Survival Attention Configuration (C17)            ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Formula: softmax(QK^T/√d + α×S) × V                          ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ S = log(N) + log(μ/μ_c) - δ                                  ║");
+    println!("║                                                              ║");
+    println!("║ Where:                                                       ║");
+    println!("║   N   = number of valid options (diversity)                  ║");
+    println!("║   μ   = integrity score (coherence with knowledge base)     ║");
+    println!("║   μ_c = critical slack threshold                            ║");
+    println!("║   δ   = distance from verified facts                        ║");
+    println!("║   α   = survival weight parameter                           ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Alpha Modes:                                                 ║");
+    println!("║   Static:  Fixed alpha value                                 ║");
+    println!("║   Learned: Learnable parameter                               ║");
+    println!("║   Dynamic: Computed from input (creative vs factual)         ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Use 'survival adjust <alpha>' to modify alpha                ║");
+    println!("╚══════════════════════════════════════════════════════════════╝");
+
+    Ok(())
+}
+
+async fn survival_adjust(addr: &str, alpha: f64) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Connecting to Survival Attention Service at {}...\n", addr);
+
+    let mut client = SurvivalAttentionServiceClient::connect(addr.to_string()).await?;
+
+    let request = Request::new(AdjustAlphaRequest {
+        new_base_alpha: alpha,
+        task_type: "general".to_string(),
+        risk_level: RiskLevel::Medium.into(),
+    });
+
+    let response = client.adjust_alpha(request).await?;
+    let result = response.into_inner();
+
+    println!("╔══════════════════════════════════════════════════════════════╗");
+    println!("║              Alpha Adjustment Result (C17)                   ║");
+    println!("╠══════════════════════════════════════════════════════════════╣");
+    println!("║ Previous Alpha: {:>46.4} ║", result.previous_alpha);
+    println!("║ New Alpha: {:>51.4} ║", result.new_alpha);
+    println!("║ Reason: {:>54} ║", result.adjustment_reason);
 
     println!("╚══════════════════════════════════════════════════════════════╝");
 

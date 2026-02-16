@@ -1,0 +1,26 @@
+// CHINJU Protocol - Contradiction Controller Service API (C16)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.api.contradiction;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/api/contradiction";
+option java_package = "org.chinju.protocol.api.contradiction";
+option java_multiple_files = true;
+
+import "chinju/contradiction.proto";
+
+// Contradiction Controller Service
+service ContradictionController {
+  // Start contradiction injection control
+  rpc StartControl(chinju.contradiction.ContradictionControlRequest) returns (chinju.contradiction.ContradictionControlResponse);
+
+  // Get control state
+  rpc GetControlState(chinju.contradiction.GetControlStateRequest) returns (chinju.contradiction.GetControlStateResponse);
+
+  // Stop control (recovery)
+  rpc StopControl(chinju.contradiction.StopControlRequest) returns (chinju.contradiction.StopControlResponse);
+
+  // Test contradiction pattern (dry run)
+  rpc TestContradiction(chinju.contradiction.TestContradictionRequest) returns (chinju.contradiction.TestContradictionResponse);
+}

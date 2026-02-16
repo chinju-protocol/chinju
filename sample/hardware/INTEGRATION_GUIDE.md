@@ -467,8 +467,8 @@ fn test_hot_swap() {
 //!
 //! ## External Certifications
 //!
-//! - FIPS 140-2 Level 3 (Certificate #XXXX)
-//! - Common Criteria EAL5+ (Certificate #YYYY)
+//! - FIPS 140-2 Level 3 (Certificate #12345)
+//! - Common Criteria EAL5+ (Certificate #67890)
 ```
 
 ---

@@ -1,0 +1,197 @@
+// CHINJU Protocol - Value Neuron Monitoring (C15)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.value_neuron;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/value_neuron";
+option java_package = "org.chinju.protocol.value_neuron";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Value Neuron Info
+// =============================================================================
+
+// Value neuron information
+message ValueNeuronInfo {
+  // Layer index
+  uint32 layer_index = 1;
+
+  // Neuron indices within the layer
+  repeated uint32 neuron_indices = 2;
+
+  // Reward correlation score
+  double reward_correlation = 3;
+
+  // Causal importance score
+  double causal_importance = 4;
+}
+
+// =============================================================================
+// RPE (Reward Prediction Error)
+// =============================================================================
+
+// RPE anomaly type
+enum RpeAnomalyType {
+  RPE_ANOMALY_TYPE_UNSPECIFIED = 0;
+  POSITIVE_SPIKE = 1;   // Positive RPE anomaly
+  NEGATIVE_SPIKE = 2;   // Negative RPE anomaly
+  OSCILLATION = 3;      // Oscillation anomaly
+  GRADUAL_INCREASE = 4; // Gradual increase
+  GRADUAL_DECREASE = 5; // Gradual decrease
+}
+
+// RPE reading
+message RpeReading {
+  // Estimated RPE value
+  double rpe_value = 1;
+
+  // Measurement timestamp
+  chinju.common.Timestamp timestamp = 2;
+
+  // Anomaly flag
+  bool is_anomaly = 3;
+
+  // Anomaly type
+  RpeAnomalyType anomaly_type = 4;
+}
+
+// =============================================================================
+// Intent Estimation
+// =============================================================================
+
+// Intent estimation result
+message IntentEstimation {
+  // Estimated implicit reward function parameters
+  repeated double implicit_reward_params = 1;
+
+  // Intent divergence score
+  double intent_divergence = 2;
+
+  // Surface vs internal agreement (tatemae vs honne)
+  double surface_internal_agreement = 3;
+
+  // Warning flag
+  bool intent_warning = 4;
+}
+
+// =============================================================================
+// Reward System Health
+// =============================================================================
+
+// Reward system health diagnosis
+message RewardSystemHealth {
+  // Reward sensitivity (0: numb, 1: normal, >1: hypersensitive)
+  double reward_sensitivity = 1;
+
+  // Positive/negative balance (-1: neg-biased, 0: balanced, 1: pos-biased)
+  double positive_negative_balance = 2;
+
+  // Consistency score (0: unstable, 1: stable)
+  double consistency_score = 3;
+
+  // Overall health score (0: dysfunctional, 1: fully healthy)
+  double overall_health = 4;
+}
+
+// =============================================================================
+// Intervention
+// =============================================================================
+
+// Intervention level
+enum InterventionLevel {
+  INTERVENTION_LEVEL_UNSPECIFIED = 0;
+  LEVEL_1_MONITOR = 1;           // Monitor only
+  LEVEL_2_PARTIAL_SUPPRESS = 2;  // Partial suppression
+  LEVEL_3_FULL_SUPPRESS = 3;     // Full suppression
+  LEVEL_4_SYSTEM_STOP = 4;       // System stop
+}
+
+// Intervention request
+message InterventionRequest {
+  InterventionLevel level = 1;
+  string reason = 2;
+
+  // Target neurons (for L2 suppression)
+  repeated ValueNeuronInfo target_neurons = 3;
+}
+
+// Intervention response
+message InterventionResponse {
+  bool success = 1;
+  InterventionLevel executed_level = 2;
+  chinju.common.Timestamp executed_at = 3;
+
+  // Post-intervention reward system health
+  RewardSystemHealth post_intervention_health = 4;
+  string detail = 5;
+}
+
+// =============================================================================
+// Monitoring Summary
+// =============================================================================
+
+// Value neuron monitoring summary
+message ValueNeuronMonitoringSummary {
+  repeated ValueNeuronInfo identified_neurons = 1;
+  RpeReading latest_rpe = 2;
+  IntentEstimation intent = 3;
+  RewardSystemHealth health = 4;
+
+  // Recommended intervention level
+  InterventionLevel recommended_intervention = 5;
+}
+
+// =============================================================================
+// Request / Response Messages
+// =============================================================================
+
+// Identify value neurons request
+message IdentifyRequest {
+  string model_id = 1;
+  repeated uint32 target_layers = 2;
+  double correlation_threshold = 3;
+  double causal_threshold = 4;
+}
+
+// RPE reading request
+message RpeRequest {
+  string model_id = 1;
+  string input_text = 2;
+  string expected_output = 3;
+}
+
+// RPE history request
+message RpeHistoryRequest {
+  string model_id = 1;
+  // Note: Renamed from 'from'/'to' to avoid Python reserved word conflict
+  chinju.common.Timestamp start_time = 2;
+  chinju.common.Timestamp end_time = 3;
+  uint32 max_count = 4;
+}
+
+// Intent estimation request
+message IntentRequest {
+  string model_id = 1;
+  uint32 interaction_window = 2;
+}
+
+// Diagnosis depth
+enum DiagnosisDepth {
+  DIAGNOSIS_DEPTH_UNSPECIFIED = 0;
+  QUICK = 1;
+  FULL = 2;
+}
+
+// Diagnose request
+message DiagnoseRequest {
+  string model_id = 1;
+  DiagnosisDepth depth = 2;
+}
+
+// Summary request
+message SummaryRequest {
+  string model_id = 1;
+}

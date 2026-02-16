@@ -214,7 +214,7 @@ pub fn verify_with_hardware(
 ### 4.2 RFCフォーマット
 
 ```markdown
-# RFC-XXXX: [タイトル]
+# RFC-0001: [Title]
 
 ## 概要
 [1-2文で変更内容を説明]

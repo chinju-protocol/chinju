@@ -6,7 +6,7 @@
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
-use crate::gen::chinju::common::{Hash, HashAlgorithm, ThresholdSignature};
+use crate::gen::chinju::common::{Hash, HashAlgorithm};
 use crate::gen::chinju::policy::PolicyPack;
 use crate::services::signature::ThresholdVerifier;
 

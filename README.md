@@ -2,6 +2,8 @@
 
 > **人間がAIを最終制御する** 状態を、物理層と情報理論の両面から固める安全層
 
+**Status**: Alpha（セキュリティ監査未実施、本番環境での使用は非推奨）
+
 [English version (README_EN.md)](./README_EN.md)
 
 ---
@@ -9,6 +11,7 @@
 ## 目次
 
 - [概要](#概要)
+- [Scientific Basis](#scientific-basis)
 - [Getting Started](#getting-started)
 - [特許一覧](#特許一覧)
 - [Patent Status](#patent-status)
@@ -25,6 +28,23 @@
 
 CHINJUは、AI安全層を構成する17件の特許から成る。
 「ソフトウェアだけでは止められない」という前提に立ち、**物理的不可逆性**と**数学的原理**に基づいてAIの暴走を防止する。
+
+---
+
+## Scientific Basis
+
+本フレームワークの理論的・実証的基盤は以下の論文で検証されています：
+
+| Paper | DOI |
+|:--|:--|
+| The Ugentropic Survival Principle | [10.5281/zenodo.18637768](https://zenodo.org/records/18637768) |
+| CHINJU Framework | [10.5281/zenodo.18603195](https://zenodo.org/records/18603195) |
+
+**Key Results:**
+- **Lean 4形式検証**: 210+定理、sorry=0（機械検証済み）
+- **8ドメイン実証**: 生物、企業、金融、政治、言語、ソフトウェア、遺伝、LLM
+- **12/12攻撃パターン**: 全てBlocked（残りはnation-state level coordination）
+- **Survival Equation統合**: すべての閾値は S = N_eff × (μ/μ_c) × e^{-δ} から導出
 
 ---
 

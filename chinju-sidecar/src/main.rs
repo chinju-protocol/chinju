@@ -22,12 +22,21 @@
 
 use chinju_sidecar::gen::chinju::api::credential::credential_service_server::CredentialServiceServer;
 use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_server::AiGatewayServiceServer;
+use chinju_sidecar::gen::chinju::api::capability::capability_evaluator_server::CapabilityEvaluatorServer;
+use chinju_sidecar::gen::chinju::api::contradiction::contradiction_controller_server::ContradictionControllerServer;
+use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_server::ValueNeuronMonitorServer;
+use chinju_sidecar::gen::chinju::api::survival_attention::survival_attention_service_server::SurvivalAttentionServiceServer;
 use chinju_sidecar::services::{
     create_audit_system_with_restore, CredentialServiceImpl, FileStorage, GatewayService,
     HttpServerState, OpenAiClient, OpenAiClientConfig, PolicyEngine, SigningService,
-    StorageBackend, TokenService, start_http_server, ContainmentConfig, SanitizerConfig, SanitizationMode,
+    StorageBackend, TokenService, start_http_server, ContainmentConfig, SanitizationMode,
+    // C14-C17 services
+    CapabilityEvaluator, CapabilityEvaluatorImpl,
+    ContradictionController, ContradictionControllerImpl,
+    ValueNeuronMonitor, ValueNeuronMonitorImpl,
+    SurvivalAttentionService, SurvivalAttentionServiceImpl,
 };
-use chinju_core::hardware::{create_dead_mans_switch, HardwareConfig, physical_kill_switch};
+use chinju_core::hardware::{DeadMansSwitchConfig, HardwareConfig, physical_kill_switch, SoftDeadMansSwitch};
 use chinju_core::types::TrustLevel;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -153,12 +162,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         HardwareConfig::mock()
     });
     
-    let dead_mans_switch: Arc<dyn chinju_core::hardware::DeadMansSwitch> = match create_dead_mans_switch(&hardware_config) {
-        Ok(switch) => Arc::from(switch),
-        Err(e) => {
-            warn!("Failed to create Dead Man's Switch: {}, using soft fallback", e);
-            Arc::new(chinju_core::hardware::SoftDeadMansSwitch::default())
-        }
+    let dead_mans_switch: Arc<dyn chinju_core::hardware::DeadMansSwitch> = {
+        let config = DeadMansSwitchConfig::default();
+        Arc::new(SoftDeadMansSwitch::new(config))
     };
 
     // L4 Critical: Register physical kill switch
@@ -191,6 +197,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dead_mans_switch,
     ).await;
     info!("  Gateway Service initialized");
+
+    // C14: Capability Evaluator
+    let capability_evaluator = CapabilityEvaluator::new();
+    let capability_service = CapabilityEvaluatorImpl::new(capability_evaluator);
+    info!("  Capability Evaluator (C14) initialized");
+
+    // C16: Contradiction Controller
+    let contradiction_controller = ContradictionController::new();
+    let contradiction_service = ContradictionControllerImpl::new(contradiction_controller);
+    info!("  Contradiction Controller (C16) initialized");
+
+    // C15: Value Neuron Monitor
+    let value_neuron_monitor = ValueNeuronMonitor::new();
+    let value_neuron_service = ValueNeuronMonitorImpl::new(value_neuron_monitor);
+    info!("  Value Neuron Monitor (C15) initialized");
+
+    // C17: Survival Attention
+    let survival_attention = SurvivalAttentionService::new();
+    let survival_attention_service = SurvivalAttentionServiceImpl::new(survival_attention);
+    info!("  Survival Attention Service (C17) initialized");
 
     // Server addresses
     let grpc_port: u16 = std::env::var("CHINJU_GRPC_PORT")
@@ -233,6 +259,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .add_service(CredentialServiceServer::new(
                 credential_service.as_ref().clone(),
             ))
+            // C14-C17 services
+            .add_service(CapabilityEvaluatorServer::new(capability_service))
+            .add_service(ContradictionControllerServer::new(contradiction_service))
+            .add_service(ValueNeuronMonitorServer::new(value_neuron_service))
+            .add_service(SurvivalAttentionServiceServer::new(survival_attention_service))
             .serve(grpc_addr)
             .await
         {

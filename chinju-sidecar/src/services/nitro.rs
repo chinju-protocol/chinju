@@ -18,7 +18,7 @@
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 /// Nitro Enclave service status
 #[derive(Debug, Clone)]

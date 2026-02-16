@@ -362,7 +362,7 @@ certificate_path = "/etc/chinju/hsm.crt"
 #### Step 1: RFC作成
 
 ```markdown
-# RFC-XXXX: C10 - [コンポーネント名]
+# RFC-0001: C10 - [Component Name]
 
 ## 概要
 [1-2文で説明]

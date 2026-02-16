@@ -50,8 +50,8 @@ use crate::EnclaveError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd};
-use tracing::{debug, error, info, warn};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+use tracing::{debug, info, warn};
 
 /// KMS Client Configuration
 #[derive(Debug, Clone)]

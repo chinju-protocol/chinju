@@ -31,6 +31,7 @@ use crate::services::extraction_deterrent::{
 };
 use crate::services::sanitizer::{OutputSanitizer, SanitizationMode, SanitizerConfig};
 use crate::services::side_channel::{SideChannelBlocker, SideChannelConfig};
+use crate::services::contradiction_controller::{ContradictionController, ContradictionControllerConfig};
 use crate::services::{CredentialServiceImpl, PolicyEngine, RequestContext, TokenService};
 use chinju_core::hardware::{
     DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch, SwitchState,
@@ -56,6 +57,8 @@ pub struct ContainmentConfig {
     pub enable_dead_mans_switch: bool,
     /// Enable Nitro Enclave for secure key operations (L3)
     pub enable_nitro_enclave: bool,
+    /// Enable C16 structural contradiction injection (7.6)
+    pub enable_contradiction: bool,
     /// Sanitization mode
     pub sanitization_mode: SanitizationMode,
     /// Extraction deterrent config
@@ -70,6 +73,8 @@ pub struct ContainmentConfig {
     pub nitro_enclave_cid: Option<u32>,
     /// Nitro Enclave vsock port
     pub nitro_enclave_port: u32,
+    /// C16 contradiction controller config
+    pub contradiction_config: ContradictionControllerConfig,
 }
 
 impl Default for ContainmentConfig {
@@ -80,6 +85,7 @@ impl Default for ContainmentConfig {
             enable_side_channel_blocking: true,
             enable_dead_mans_switch: true,
             enable_nitro_enclave: false, // Disabled by default (requires EC2 Nitro)
+            enable_contradiction: false, // Disabled by default (C16 requires explicit activation)
             sanitization_mode: SanitizationMode::Standard,
             extraction_config: ExtractionDeterrentConfig::default(),
             sanitizer_config: SanitizerConfig::default(),
@@ -87,12 +93,13 @@ impl Default for ContainmentConfig {
             dead_mans_switch_config: DeadMansSwitchConfig::default(),
             nitro_enclave_cid: None,
             nitro_enclave_port: 5000,
+            contradiction_config: ContradictionControllerConfig::default(),
         }
     }
 }
 
 impl ContainmentConfig {
-    /// Create config with all C13 features disabled (for testing)
+    /// Create config with all C13/C16 features disabled (for testing)
     pub fn disabled() -> Self {
         Self {
             enable_extraction_deterrent: false,
@@ -100,6 +107,7 @@ impl ContainmentConfig {
             enable_side_channel_blocking: false,
             enable_dead_mans_switch: false,
             enable_nitro_enclave: false,
+            enable_contradiction: false,
             ..Default::default()
         }
     }
@@ -140,6 +148,10 @@ impl ContainmentConfig {
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false);
 
+        let enable_contradiction = std::env::var("CHINJU_C16_CONTRADICTION")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
         let nitro_enclave_cid: Option<u32> = std::env::var("CHINJU_NITRO_ENCLAVE_CID")
             .ok()
             .and_then(|s| s.parse().ok());
@@ -155,6 +167,7 @@ impl ContainmentConfig {
             enable_side_channel_blocking,
             enable_dead_mans_switch,
             enable_nitro_enclave,
+            enable_contradiction,
             nitro_enclave_cid,
             nitro_enclave_port,
             ..Default::default()
@@ -182,6 +195,8 @@ pub struct GatewayService {
     lpt_monitor: Arc<LptMonitor>,
     /// Threshold signature verifier (Phase 4.4)
     threshold_verifier: Arc<ThresholdVerifier>,
+    /// Whether threshold verifier was initialized successfully (10.3.3)
+    threshold_initialized: std::sync::atomic::AtomicBool,
     /// C13: Model containment configuration
     containment_config: ContainmentConfig,
     /// C13: Extraction deterrent
@@ -194,6 +209,8 @@ pub struct GatewayService {
     dead_mans_switch: Arc<dyn DeadMansSwitch>,
     /// C13: Nitro Enclave Service (L3 secure execution)
     nitro_service: Option<Arc<RwLock<super::NitroService>>>,
+    /// C16: Contradiction Controller for structural contradiction injection
+    contradiction_controller: Option<Arc<ContradictionController>>,
 }
 
 impl GatewayService {
@@ -303,11 +320,21 @@ impl GatewayService {
             }
         }
 
-        // Initialize Threshold Verifier
+        // Initialize Threshold Verifier (10.3.3)
         let threshold_verifier = Arc::new(ThresholdVerifier::default_config());
-        if let Err(e) = threshold_verifier.init_from_env().await {
-            warn!("Failed to initialize threshold verifier from env: {}", e);
-        }
+        let threshold_initialized = match threshold_verifier.init_from_env().await {
+            Ok(_) => {
+                info!("Threshold verifier initialized successfully");
+                true
+            }
+            Err(e) => {
+                error!(
+                    error = %e,
+                    "Failed to initialize threshold verifier - EmergencyHalt will require manual override"
+                );
+                false
+            }
+        };
 
         // Initialize Nitro Enclave Service if enabled
         let nitro_service = if containment_config.enable_nitro_enclave {
@@ -341,6 +368,17 @@ impl GatewayService {
             None
         };
 
+        // Initialize C16 Contradiction Controller if enabled
+        let contradiction_controller = if containment_config.enable_contradiction {
+            info!("Initializing C16 Contradiction Controller");
+            Some(Arc::new(ContradictionController::with_config(
+                containment_config.contradiction_config.clone()
+            )))
+        } else {
+            info!("C16 Contradiction injection disabled");
+            None
+        };
+
         Self {
             token_service,
             credential_service,
@@ -351,12 +389,14 @@ impl GatewayService {
             openai_client,
             lpt_monitor: Arc::new(LptMonitor::new()),
             threshold_verifier,
+            threshold_initialized: std::sync::atomic::AtomicBool::new(threshold_initialized),
             containment_config,
             extraction_deterrent,
             output_sanitizer,
             side_channel_blocker,
             dead_mans_switch,
             nitro_service,
+            contradiction_controller,
         }
     }
 
@@ -408,6 +448,16 @@ impl GatewayService {
     /// Check if Nitro Enclave is enabled
     pub fn is_nitro_enabled(&self) -> bool {
         self.containment_config.enable_nitro_enclave && self.nitro_service.is_some()
+    }
+
+    /// Get Contradiction Controller for external access (C16)
+    pub fn contradiction_controller(&self) -> Option<Arc<ContradictionController>> {
+        self.contradiction_controller.clone()
+    }
+
+    /// Check if C16 contradiction injection is enabled
+    pub fn is_contradiction_enabled(&self) -> bool {
+        self.containment_config.enable_contradiction && self.contradiction_controller.is_some()
     }
 
     /// Check if Nitro Enclave is healthy
@@ -901,11 +951,22 @@ impl AiGatewayService for GatewayService {
         let total_tokens = prompt_tokens + completion_tokens;
 
         // Step 7: Consume tokens (C5) - based on actual usage
+        // 10.2.2: Release lock before async audit logging to prevent deadlock
         let token_cost = total_tokens as u64;
-        let mut token_svc = self.token_service.write().await;
-        if !token_svc.consume(token_cost) {
-            warn!("Request rejected: Insufficient tokens");
-            // Audit: Log failure
+        let (consume_success, remaining_balance) = {
+            let mut token_svc = self.token_service.write().await;
+            let success = token_svc.consume(token_cost);
+            let remaining = token_svc.get_balance();
+            (success, remaining)
+        }; // Lock released here before any I/O operations
+
+        if !consume_success {
+            warn!(
+                token_cost = token_cost,
+                remaining = remaining_balance,
+                "Request rejected: Insufficient tokens"
+            );
+            // Audit: Log failure (now safe - no lock held)
             self.log_ai_response_audit(
                 &request_id,
                 "Insufficient tokens",
@@ -916,9 +977,11 @@ impl AiGatewayService for GatewayService {
                 false,
             )
             .await;
-            return Err(Status::resource_exhausted("Insufficient tokens"));
+            return Err(Status::resource_exhausted(format!(
+                "Insufficient tokens: {} required, {} available",
+                token_cost, remaining_balance
+            )));
         }
-        drop(token_svc);
 
         // Increment request counter
         {
@@ -1268,6 +1331,11 @@ impl AiGatewayService for GatewayService {
         let req = request.into_inner();
         warn!(reason = %req.reason, "EMERGENCY HALT requested");
 
+        // 10.3.3: Check threshold verifier initialization status
+        let is_initialized = self
+            .threshold_initialized
+            .load(std::sync::atomic::Ordering::SeqCst);
+
         // Verify threshold signature (Phase 4.4)
         let auth = req.authorization.ok_or_else(|| {
             Status::permission_denied("Threshold signature required for emergency halt")
@@ -1290,12 +1358,29 @@ impl AiGatewayService for GatewayService {
                 ));
             }
             Err(e) => {
-                // In development mode, allow if verifier is not initialized
-                if !self.threshold_verifier.is_initialized().await {
-                    warn!(
-                        "Threshold verifier not initialized, allowing halt in dev mode: {}",
-                        e
-                    );
+                // 10.3.3: Handle verification failure based on initialization status
+                if !is_initialized {
+                    // Check if we're in a permissive environment
+                    let allow_unverified = std::env::var("CHINJU_ALLOW_UNVERIFIED_HALT")
+                        .map(|v| v == "true" || v == "1")
+                        .unwrap_or(false);
+
+                    if allow_unverified {
+                        warn!(
+                            error = %e,
+                            "Threshold verifier not initialized - allowing unverified halt (DANGEROUS)"
+                        );
+                    } else {
+                        error!(
+                            error = %e,
+                            "Threshold verifier not initialized and CHINJU_ALLOW_UNVERIFIED_HALT is not set"
+                        );
+                        return Err(Status::failed_precondition(
+                            "Threshold verifier not initialized. \
+                             Emergency halt requires manual intervention. \
+                             Set CHINJU_ALLOW_UNVERIFIED_HALT=true to override (DANGEROUS).",
+                        ));
+                    }
                 } else {
                     return Err(Status::permission_denied(format!(
                         "Threshold signature error: {}",

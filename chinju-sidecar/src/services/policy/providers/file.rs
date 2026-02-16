@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 use crate::gen::chinju::common::Identifier;
 use crate::gen::chinju::policy::{PolicyMetadata, PolicyPack};
 
-use super::super::provider::{PolicyProvider, PolicyProviderError, PolicyUpdate};
+use super::super::provider::{PolicyProvider, PolicyProviderError};
 
 /// File-based policy provider
 ///

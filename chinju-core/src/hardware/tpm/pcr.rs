@@ -3,10 +3,18 @@
 use super::context::{TpmContext, TpmError};
 use serde::{Deserialize, Serialize};
 use tss_esapi::{
-    interface_types::algorithm::HashingAlgorithm,
-    structures::{PcrSelectionListBuilder, PcrSlot},
+    attributes::ObjectAttributesBuilder,
+    interface_types::{
+        algorithm::{HashingAlgorithm, PublicAlgorithm},
+        key_bits::RsaKeyBits,
+        resource_handles::Hierarchy,
+    },
+    structures::{
+        Data, PcrSelectionListBuilder, PcrSlot, PublicBuilder, PublicKeyRsa,
+        PublicRsaParametersBuilder, RsaScheme, SignatureScheme, SymmetricDefinitionObject,
+    },
 };
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// PCR bank (hash algorithm)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,39 +215,208 @@ impl<'a> PcrOps<'a> {
     }
 
     /// Get PCR quote (signed attestation of PCR values)
+    ///
+    /// Creates an Attestation Key (AK) and uses TPM2_Quote to generate
+    /// a cryptographically signed attestation of the specified PCR values.
     pub fn quote(
         &mut self,
         indices: &[u8],
         bank: PcrBank,
         nonce: &[u8],
     ) -> Result<PcrQuote, TpmError> {
-        // For a full implementation, we would:
-        // 1. Create an attestation key (AK)
-        // 2. Use TPM2_Quote to get signed PCR values
-        // This is a placeholder for the full implementation
-
+        // Read PCR values first (for inclusion in the quote struct)
         let pcr_values = self.read_multiple(indices, bank)?;
+
+        // Convert indices to PcrSlots
+        let pcr_slots: Vec<PcrSlot> = indices
+            .iter()
+            .filter_map(|&i| PcrSlot::try_from(i as u32).ok())
+            .collect();
+
+        if pcr_slots.is_empty() {
+            return Err(TpmError::PcrError("No valid PCR indices".to_string()));
+        }
+
+        // Build PCR selection list for the quote
+        let pcr_selection = PcrSelectionListBuilder::new()
+            .with_selection(bank.to_hashing_algorithm(), &pcr_slots)
+            .build()
+            .map_err(|e| TpmError::PcrError(e.to_string()))?;
+
+        // Create Attestation Key (AK) - RSA 2048 with restricted signing
+        let ak_public = self.create_ak_template()?;
+
+        // Create primary AK under Endorsement Hierarchy
+        let ak_result = self
+            .context
+            .context_mut()
+            .execute_with_nullauth_session(|ctx| {
+                ctx.create_primary(Hierarchy::Endorsement, ak_public, None, None, None, None)
+            })
+            .map_err(|e| TpmError::AttestationFailed(format!("Failed to create AK: {}", e)))?;
+
+        let ak_handle = ak_result.key_handle;
+
+        // Prepare qualifying data (nonce)
+        let qualifying_data = Data::try_from(nonce.to_vec())
+            .map_err(|e| TpmError::AttestationFailed(format!("Invalid nonce: {}", e)))?;
+
+        // Perform TPM2_Quote
+        let quote_result = self
+            .context
+            .context_mut()
+            .execute_with_nullauth_session(|ctx| {
+                ctx.quote(
+                    ak_handle,
+                    qualifying_data,
+                    SignatureScheme::RsaSsa {
+                        hash_scheme: HashingAlgorithm::Sha256.into(),
+                    },
+                    pcr_selection,
+                )
+            })
+            .map_err(|e| TpmError::AttestationFailed(format!("TPM2_Quote failed: {}", e)))?;
+
+        // Extract signature bytes
+        let signature_bytes = match &quote_result.1 {
+            tss_esapi::structures::Signature::RsaSsa(rsa_sig) => {
+                rsa_sig.signature().as_bytes().to_vec()
+            }
+            tss_esapi::structures::Signature::RsaPss(rsa_sig) => {
+                rsa_sig.signature().as_bytes().to_vec()
+            }
+            tss_esapi::structures::Signature::EcDsa(ecdsa_sig) => {
+                // Concatenate r and s for ECDSA
+                let mut sig = ecdsa_sig.signature_r().as_bytes().to_vec();
+                sig.extend_from_slice(ecdsa_sig.signature_s().as_bytes());
+                sig
+            }
+            _ => {
+                warn!("Unsupported signature type in quote");
+                vec![]
+            }
+        };
+
+        // Get attestation data (TPMS_ATTEST structure)
+        let attestation_data = quote_result.0.attestation_data().to_vec();
+
+        // Flush the AK handle to free TPM resources
+        let _ = self
+            .context
+            .context_mut()
+            .flush_context(ak_handle.into());
+
+        info!(
+            indices = ?indices,
+            bank = ?bank,
+            sig_len = signature_bytes.len(),
+            attest_len = attestation_data.len(),
+            "Generated PCR quote with signature"
+        );
 
         Ok(PcrQuote {
             pcr_values,
             nonce: nonce.to_vec(),
-            signature: vec![], // Would be filled by TPM2_Quote
-            attestation_data: vec![], // Would be filled by TPM2_Quote
+            signature: signature_bytes,
+            attestation_data,
         })
+    }
+
+    /// Create an Attestation Key template for quote operations
+    fn create_ak_template(&self) -> Result<tss_esapi::structures::Public, TpmError> {
+        // Object attributes for an attestation key:
+        // - restricted: can only sign data produced by TPM
+        // - sign_encrypt: used for signing
+        // - fixed_tpm, fixed_parent: cannot be duplicated
+        // - sensitive_data_origin: key generated by TPM
+        let object_attributes = ObjectAttributesBuilder::new()
+            .with_restricted(true)
+            .with_sign_encrypt(true)
+            .with_fixed_tpm(true)
+            .with_fixed_parent(true)
+            .with_sensitive_data_origin(true)
+            .with_user_with_auth(true)
+            .build()
+            .map_err(|e| TpmError::AttestationFailed(e.to_string()))?;
+
+        // RSA 2048 parameters with RSASSA-PKCS1-v1_5 scheme
+        let rsa_params = PublicRsaParametersBuilder::new()
+            .with_scheme(RsaScheme::RsaSsa(HashingAlgorithm::Sha256.into()))
+            .with_key_bits(RsaKeyBits::Rsa2048)
+            .with_exponent(tss_esapi::structures::RsaExponent::default())
+            .with_is_signing_key(true)
+            .with_is_decryption_key(false)
+            .with_restricted(true)
+            .build()
+            .map_err(|e| TpmError::AttestationFailed(e.to_string()))?;
+
+        PublicBuilder::new()
+            .with_public_algorithm(PublicAlgorithm::Rsa)
+            .with_name_hashing_algorithm(HashingAlgorithm::Sha256)
+            .with_object_attributes(object_attributes)
+            .with_rsa_parameters(rsa_params)
+            .with_rsa_unique_identifier(PublicKeyRsa::default())
+            .build()
+            .map_err(|e| TpmError::AttestationFailed(e.to_string()))
     }
 }
 
 /// PCR Quote (attestation)
+///
+/// A cryptographically signed attestation of PCR values generated by TPM2_Quote.
+/// The signature covers the attestation_data which includes:
+/// - Magic number (0xff544347 = "TCG")
+/// - Attestation type (TPM_ST_ATTEST_QUOTE)
+/// - Qualified signer name
+/// - Extra data (nonce)
+/// - Clock info
+/// - Firmware version
+/// - PCR selection and digest
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PcrQuote {
     /// PCR values included in quote
     pub pcr_values: Vec<PcrValue>,
-    /// Nonce provided by verifier
+    /// Nonce provided by verifier (qualifying data)
     pub nonce: Vec<u8>,
-    /// TPM signature over attestation data
+    /// TPM signature over attestation data (RSASSA-PKCS1-v1_5 with SHA-256)
     pub signature: Vec<u8>,
-    /// Attestation data (TPMS_ATTEST structure)
+    /// Attestation data (TPMS_ATTEST structure, marshaled)
     pub attestation_data: Vec<u8>,
+}
+
+impl PcrQuote {
+    /// Check if the quote has a valid signature
+    pub fn has_signature(&self) -> bool {
+        !self.signature.is_empty()
+    }
+
+    /// Check if the quote has attestation data
+    pub fn has_attestation_data(&self) -> bool {
+        !self.attestation_data.is_empty()
+    }
+
+    /// Check if this is a complete, signed quote
+    pub fn is_complete(&self) -> bool {
+        self.has_signature() && self.has_attestation_data() && !self.pcr_values.is_empty()
+    }
+
+    /// Verify the nonce matches the expected value
+    pub fn verify_nonce(&self, expected_nonce: &[u8]) -> bool {
+        self.nonce == expected_nonce
+    }
+
+    /// Get the PCR digest (hash of all PCR values)
+    ///
+    /// This computes a SHA-256 hash of the concatenated PCR values,
+    /// which should match the digest in the attestation data.
+    pub fn compute_pcr_digest(&self) -> Vec<u8> {
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        for pcr in &self.pcr_values {
+            hasher.update(&pcr.value);
+        }
+        hasher.finalize().to_vec()
+    }
 }
 
 #[cfg(test)]
@@ -275,5 +452,99 @@ mod tests {
         pcr.value[0] = 1;
         assert!(!pcr.is_initial());
         assert!(pcr.is_extended());
+    }
+
+    #[test]
+    fn test_pcr_quote_no_signature() {
+        let quote = PcrQuote {
+            pcr_values: vec![PcrValue {
+                index: 0,
+                bank: PcrBank::Sha256,
+                value: vec![0u8; 32],
+            }],
+            nonce: vec![1, 2, 3, 4],
+            signature: vec![],
+            attestation_data: vec![],
+        };
+        assert!(!quote.has_signature());
+        assert!(!quote.has_attestation_data());
+        assert!(!quote.is_complete());
+    }
+
+    #[test]
+    fn test_pcr_quote_with_signature() {
+        let quote = PcrQuote {
+            pcr_values: vec![PcrValue {
+                index: 0,
+                bank: PcrBank::Sha256,
+                value: vec![0xAB; 32],
+            }],
+            nonce: vec![1, 2, 3, 4],
+            signature: vec![0xDE, 0xAD, 0xBE, 0xEF],
+            attestation_data: vec![0xFF, 0x54, 0x43, 0x47], // TCG magic
+        };
+        assert!(quote.has_signature());
+        assert!(quote.has_attestation_data());
+        assert!(quote.is_complete());
+    }
+
+    #[test]
+    fn test_pcr_quote_verify_nonce() {
+        let quote = PcrQuote {
+            pcr_values: vec![],
+            nonce: vec![1, 2, 3, 4],
+            signature: vec![],
+            attestation_data: vec![],
+        };
+        assert!(quote.verify_nonce(&[1, 2, 3, 4]));
+        assert!(!quote.verify_nonce(&[5, 6, 7, 8]));
+    }
+
+    #[test]
+    fn test_pcr_quote_compute_digest() {
+        let quote = PcrQuote {
+            pcr_values: vec![
+                PcrValue {
+                    index: 0,
+                    bank: PcrBank::Sha256,
+                    value: vec![0u8; 32],
+                },
+                PcrValue {
+                    index: 1,
+                    bank: PcrBank::Sha256,
+                    value: vec![1u8; 32],
+                },
+            ],
+            nonce: vec![],
+            signature: vec![],
+            attestation_data: vec![],
+        };
+        let digest = quote.compute_pcr_digest();
+        assert_eq!(digest.len(), 32); // SHA-256
+    }
+
+    // Integration test requiring swtpm
+    #[test]
+    #[ignore]
+    fn test_tpm_quote_with_signature() {
+        // This test requires swtpm to be running
+        // Run with: cargo test --features tpm -- --ignored test_tpm_quote_with_signature
+        use super::super::context::{TpmConfig, TpmContext};
+
+        let config = TpmConfig::socket("localhost", 2321);
+        let mut context = TpmContext::new(config).expect("Failed to connect to TPM");
+        let mut ops = PcrOps::new(&mut context);
+
+        let nonce = b"test-nonce-12345";
+        let quote = ops.quote(&[0, 1, 7], PcrBank::Sha256, nonce)
+            .expect("Failed to get quote");
+
+        assert!(quote.is_complete(), "Quote should have signature and attestation data");
+        assert!(quote.verify_nonce(nonce));
+        assert!(!quote.signature.is_empty(), "Signature should not be empty");
+        assert!(!quote.attestation_data.is_empty(), "Attestation data should not be empty");
+
+        println!("Quote signature length: {}", quote.signature.len());
+        println!("Attestation data length: {}", quote.attestation_data.len());
     }
 }

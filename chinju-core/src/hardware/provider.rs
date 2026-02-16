@@ -7,7 +7,7 @@ use crate::hardware::traits::{
     HardwareError, HardwareSecurityModule, ImmutableStorage, RandomSource,
 };
 use crate::hardware::dead_mans_switch::{
-    DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch,
+    DeadMansSwitch, SoftDeadMansSwitch,
 };
 #[cfg(all(feature = "tpm", target_os = "linux"))]
 use crate::hardware::tpm::{TpmConfig, TpmDeadMansSwitch};
@@ -377,9 +377,8 @@ pub fn create_dead_mans_switch(
             Ok(Box::new(TpmDeadMansSwitch::default_config(tpm_config)))
         }
         // Fallback to soft switch for other backends for now
-        _ => {
-            Ok(Box::new(SoftDeadMansSwitch::default()))
-        }
+        #[allow(unreachable_patterns)]
+        _ => Ok(Box::new(SoftDeadMansSwitch::default()))
     }
 }
 

@@ -1,0 +1,156 @@
+// CHINJU Protocol - Survival-Weighted Attention (C17)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.survival_attention;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/survival_attention";
+option java_package = "org.chinju.protocol.survival_attention";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Survival Score
+// =============================================================================
+
+// Survival score for a single token
+message SurvivalScore {
+  double diversity_n = 1;  // Diversity (N)
+  double yohaku_mu = 2;    // Slack (mu)
+  double delta = 3;        // Divergence (delta)
+  double integrated_s = 4; // Integrated score S = log(N) + log(mu/mu_c) - delta
+}
+
+// Token-level survival scores
+message TokenSurvivalScores {
+  repeated SurvivalScore scores = 1;
+  repeated string tokens = 2;
+}
+
+// =============================================================================
+// SurvivalScorer Configuration
+// =============================================================================
+
+// SurvivalScorer model configuration
+message SurvivalScorerConfig {
+  // Model path
+  string model_path = 1;
+
+  // Number of parameters (informational)
+  uint64 num_parameters = 2;
+
+  // Critical slack threshold (mu_c)
+  double mu_c = 3;
+}
+
+// =============================================================================
+// Alpha Configuration
+// =============================================================================
+
+// Alpha (survival weight) configuration
+message AlphaConfig {
+  // Base alpha value
+  double base_alpha = 1;
+
+  // Enable dynamic adjustment
+  bool dynamic_adjustment = 2;
+
+  // Task-type multipliers
+  map<string, double> task_multipliers = 3;
+
+  // Maximum alpha
+  double max_alpha = 4;
+}
+
+// =============================================================================
+// SurvivalAttention Configuration
+// =============================================================================
+
+// Full SurvivalAttention configuration
+message SurvivalAttentionConfig {
+  SurvivalScorerConfig scorer = 1;
+  AlphaConfig alpha = 2;
+
+  // Per-head alphas for multi-head attention
+  repeated double head_alphas = 3;
+
+  // External knowledge base integration
+  bool external_kb_enabled = 4;
+  string external_kb_endpoint = 5;
+}
+
+// =============================================================================
+// Request / Response Messages
+// =============================================================================
+
+// Compute survival scores request
+message ComputeScoresRequest {
+  string input_text = 1;
+  SurvivalScorerConfig scorer_config = 2;
+  bool use_external_kb = 3;
+}
+
+// Inference with SurvivalAttention request
+message SurvivalAttentionRequest {
+  // Input token embeddings
+  bytes input_embeddings = 1;
+
+  // Configuration
+  SurvivalAttentionConfig config = 2;
+
+  // RAG retrieval results (optional)
+  repeated string retrieved_knowledge = 3;
+}
+
+// Inference with SurvivalAttention response
+message SurvivalAttentionResponse {
+  // Output embeddings
+  bytes output_embeddings = 1;
+
+  // Token-level survival scores (debug)
+  TokenSurvivalScores token_scores = 2;
+
+  // Effective alpha used
+  double effective_alpha = 3;
+}
+
+// Risk level for dynamic alpha adjustment
+enum RiskLevel {
+  RISK_LEVEL_UNSPECIFIED = 0;
+  LOW = 1;
+  MEDIUM = 2;
+  HIGH = 3;
+  CRITICAL = 4;
+}
+
+// Adjust alpha request
+message AdjustAlphaRequest {
+  double new_base_alpha = 1;
+  string task_type = 2;
+  RiskLevel risk_level = 3;
+}
+
+// Adjust alpha response
+message AdjustAlphaResponse {
+  double previous_alpha = 1;
+  double new_alpha = 2;
+  string adjustment_reason = 3;
+  chinju.common.Timestamp adjusted_at = 4;
+}
+
+// Update SurvivalScorer request
+message UpdateScorerRequest {
+  string new_model_path = 1;
+  bool hot_swap = 2;
+  bool validate_before_update = 3;
+}
+
+// Update SurvivalScorer response
+message UpdateScorerResponse {
+  bool success = 1;
+  SurvivalScorerConfig previous_config = 2;
+  SurvivalScorerConfig new_config = 3;
+  string validation_result = 4;
+  chinju.common.Timestamp updated_at = 5;
+}

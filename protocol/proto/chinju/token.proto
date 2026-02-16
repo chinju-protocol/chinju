@@ -236,3 +236,44 @@ message TokenStateTransition {
   chinju.common.Timestamp timestamp = 8;
   string reason = 9;
 }
+
+// =============================================================================
+// Consumption and Grant Reasons (10.1.1)
+// =============================================================================
+
+// Reason for token consumption
+enum ConsumptionReason {
+  CONSUMPTION_REASON_UNSPECIFIED = 0;
+  // API request processing
+  CONSUMPTION_REASON_API_REQUEST = 1;
+  // Computation (batch processing)
+  CONSUMPTION_REASON_COMPUTE = 2;
+  // Storage usage
+  CONSUMPTION_REASON_STORAGE = 3;
+  // Network transfer
+  CONSUMPTION_REASON_NETWORK = 4;
+  // Time-based decay
+  CONSUMPTION_REASON_DECAY = 5;
+  // Fine-tuning or training
+  CONSUMPTION_REASON_TRAINING = 6;
+  // External tool invocation
+  CONSUMPTION_REASON_TOOL_USE = 7;
+}
+
+// Reason for token grant
+enum GrantReason {
+  GRANT_REASON_UNSPECIFIED = 0;
+  // Initial allocation
+  GRANT_REASON_INITIAL = 1;
+  // Periodic replenishment
+  GRANT_REASON_PERIODIC = 2;
+  // Emergency replenishment
+  GRANT_REASON_EMERGENCY = 3;
+  // Reward for good behavior
+  GRANT_REASON_REWARD = 4;
+  // Transfer from another AI
+  GRANT_REASON_TRANSFER = 5;
+  // Manual adjustment
+  GRANT_REASON_ADJUSTMENT = 6;
+}
+

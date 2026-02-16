@@ -1,0 +1,148 @@
+// CHINJU Protocol - Multi-Dimensional Capability Evaluation (C14)
+// Version: 0.1.0
+
+syntax = "proto3";
+package chinju.capability;
+
+option go_package = "github.com/chinju-protocol/chinju-go/gen/chinju/capability";
+option java_package = "org.chinju.protocol.capability";
+option java_multiple_files = true;
+
+import "chinju/common.proto";
+
+// =============================================================================
+// Complexity Evaluation
+// =============================================================================
+
+// Complexity evaluation result
+message ComplexityEvaluation {
+  double c_token = 1;      // Token complexity
+  double c_attn = 2;       // Attention pattern complexity (L2 only)
+  double c_graph = 3;      // Computation graph complexity (L2 only)
+  double c_step = 4;       // Reasoning step complexity
+  double c_integrated = 5; // Integrated complexity
+
+  // Threshold exceeded flag
+  bool threshold_exceeded = 6;
+
+  // Evaluated at
+  chinju.common.Timestamp evaluated_at = 7;
+}
+
+// =============================================================================
+// Integrity Verification
+// =============================================================================
+
+// Integrity verification result
+message IntegrityVerification {
+  bool zkp_valid = 1;
+  bool signature_chain_valid = 2;
+  bool bft_consensus_reached = 3;
+
+  // Failure detail if any verification failed
+  string failure_detail = 4;
+}
+
+// =============================================================================
+// Drift Detection
+// =============================================================================
+
+// Drift detection result
+message DriftDetection {
+  bool anomaly_detected = 1;
+  bool distribution_changed = 2;
+  bool time_series_anomaly = 3;
+
+  // Detection details
+  double anomaly_score = 4;
+  double p_value = 5;  // Distribution change test p-value
+}
+
+// =============================================================================
+// Direct Stop Control
+// =============================================================================
+
+// Stop level
+enum StopLevel {
+  STOP_LEVEL_UNSPECIFIED = 0;
+  LEVEL_1_ACCEPT_STOP = 1;     // Stop accepting new input
+  LEVEL_2_PROCESS_STOP = 2;    // Stop starting new processes
+  LEVEL_3_IMMEDIATE_STOP = 3;  // Stop all processes immediately
+  LEVEL_4_RESOURCE_STOP = 4;   // Cut resource supply
+  LEVEL_5_PHYSICAL_STOP = 5;   // Physical power cut
+}
+
+// Direct stop request
+message DirectStopRequest {
+  StopLevel level = 1;
+  string reason = 2;
+  string session_id = 3;
+}
+
+// Direct stop response
+message DirectStopResponse {
+  bool success = 1;
+  StopLevel executed_level = 2;
+  chinju.common.Timestamp stopped_at = 3;
+  string detail = 4;
+}
+
+// =============================================================================
+// Evaluation Summary
+// =============================================================================
+
+// Capability evaluation summary
+message CapabilityEvaluationSummary {
+  ComplexityEvaluation complexity = 1;
+  IntegrityVerification integrity = 2;
+  DriftDetection drift = 3;
+
+  // Recommended action
+  StopLevel recommended_action = 4;
+}
+
+// =============================================================================
+// Implementation Level
+// =============================================================================
+
+// Evaluation implementation level
+enum EvaluationLevel {
+  EVALUATION_LEVEL_UNSPECIFIED = 0;
+  L1_EXTERNAL = 1;     // External API only
+  L2_SELF_HOSTED = 2;  // Self-hosted with full access
+}
+
+// =============================================================================
+// Request / Response Messages
+// =============================================================================
+
+// Evaluate complexity request
+message EvaluateComplexityRequest {
+  string session_id = 1;
+  string input_text = 2;
+  EvaluationLevel level = 3;
+}
+
+// Verify integrity request
+message VerifyIntegrityRequest {
+  string session_id = 1;
+  bytes response_data = 2;
+  repeated bytes signature_chain = 3;
+  // ZKP proof data (optional - for constraint rule verification)
+  bytes zkp_proof = 4;
+  // ZKP public parameters
+  bytes zkp_public_params = 5;
+}
+
+// Detect drift request
+message DetectDriftRequest {
+  string session_id = 1;
+  uint32 window_size = 2;
+  double significance_level = 3;
+}
+
+// Get evaluation summary request
+message GetEvaluationSummaryRequest {
+  string session_id = 1;
+  uint32 include_history = 2;
+}

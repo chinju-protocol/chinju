@@ -308,7 +308,7 @@ impl VendorDiversityCheck {
 ┌─────────────────────────────┐
 │  [CHINJU CERTIFIED]         │
 │  Level: CHJ-3               │
-│  Cert ID: CHJ-2024-XXXX     │
+│  Cert ID: CHJ-2024-0001     │
 │  Valid: 2024-01 to 2026-01  │
 │                             │
 │  [QR Code → 検証ページ]     │

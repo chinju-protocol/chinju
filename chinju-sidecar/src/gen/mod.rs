@@ -26,13 +26,49 @@ pub mod chinju {
         include!("chinju.policy.rs");
     }
     
+    pub mod capability {
+        include!("chinju.capability.rs");
+    }
+    
+    pub mod value_neuron {
+        include!("chinju.value_neuron.rs");
+    }
+    
+    pub mod contradiction {
+        include!("chinju.contradiction.rs");
+    }
+    
+    pub mod survival_attention {
+        include!("chinju.survival_attention.rs");
+    }
+    
     pub mod api {
         pub mod gateway {
             include!("chinju.api.gateway.rs");
         }
-        
+
         pub mod credential {
             include!("chinju.api.credential.rs");
+        }
+
+        pub mod token {
+            include!("chinju.api.token.rs");
+        }
+
+        pub mod capability {
+            include!("chinju.api.capability.rs");
+        }
+
+        pub mod value_neuron {
+            include!("chinju.api.value_neuron.rs");
+        }
+
+        pub mod contradiction {
+            include!("chinju.api.contradiction.rs");
+        }
+
+        pub mod survival_attention {
+            include!("chinju.api.survival_attention.rs");
         }
     }
 }
