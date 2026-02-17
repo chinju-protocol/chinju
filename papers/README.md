@@ -12,7 +12,7 @@ This directory contains the academic paper describing the CHINJU AI Safety Frame
 
 Current AI safety approaches are predominantly software-based and face fundamental limitations proven by recent theoretical results showing that safety verification is coNP-complete.
 We present CHINJU ("Guardian Spirit"), a hardware-rooted AI safety framework that combines physical irreversibility with a unified mathematical theory—the Survival Equation.
-The framework consists of 15 complementary patent technologies organized in a 5-layer × 2-axis (Software/Hardware) architecture.
+The framework consists of 17 complementary patent technologies organized in a 5-layer × 2-axis (Software/Hardware) architecture.
 
 ## Key Contributions
 
@@ -113,7 +113,7 @@ Auth            │                        │  Degradation
 
 ## Related Patents
 
-- C1-C15: CHINJU Protocol Patents
+- C1-C17: CHINJU Protocol Patents
 - L2: Hierarchical Deviation Calculation (D* Function)
 - L11: Survival Equation Derivation
 - L53: Dimension Decomposition Framework

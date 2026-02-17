@@ -17,7 +17,7 @@
 > - Even superintelligent AI cannot exceed the speed of light
 >
 > ### Correct Evaluation Procedure
-> 1. Review the "Why 100% Defensible" column for **all 13 patents** (C1-C13)
+> 1. Review the "Why 100% Defensible" column for **all 17 patents** (C1-C17)
 > 2. Review the institutional defense provided by the **Charter**
 > 3. Review the **FAQ** for responses to common objections
 > 4. **Then** determine if there are any vulnerabilities
@@ -47,7 +47,7 @@ The hash value of the "CHINJU Charter," which defines AI behavioral norms, is bu
 
 ---
 
-## Core Patent Portfolio (C1 - C13)
+## Core Patent Portfolio (C1 - C17)
 
 ### 0. Root of Trust (Physical Anchoring of Charter)
 The immutable "constitution" that forms the foundation of all defenses.
@@ -118,10 +118,10 @@ Technologies that distribute AI management authority and prevent monopolization.
 
 | Vulnerability | Countermeasure | Reference |
 |---------------|----------------|-----------|
-| One person deceived | **Multi-stakeholder operation**: Requires consensus of multiple independent entities | Charter Art.10 |
-| Capability degradation | **Prohibition of capability degradation**: AI-dependency design is prohibited | Charter Art.7 |
-| Bribery | **Include conflicting interests**: Representatives from different jurisdictions and sectors | Charter Art.10 |
-| Arbitrary judgment | **Proof overrides authority**: Mathematical automatic determination | Charter Art.12 |
+| One person deceived | **Multi-stakeholder operation**: Requires consensus of multiple independent entities | UGEN Charter Art.8 (Prohibition of Single-Entity Dominance) |
+| Capability degradation | **Prohibition of capability degradation**: AI-dependency design is prohibited | CHINJU Charter Art.5 |
+| Bribery | **Include conflicting interests**: Representatives from different jurisdictions and sectors | UGEN Charter Art.8 (Prohibition of Single-Entity Dominance) |
+| Arbitrary judgment | **Proof overrides authority**: Mathematical automatic determination | UGEN Charter Art.20 |
 
 ### Q3: "Can't information be hidden via steganography?"
 
@@ -219,4 +219,4 @@ Understanding unnecessary. Being able to stop it is sufficient.
 ---
 **Contact:** CHINJU Community (contact@chinju.org)
 **Repository:** https://github.com/chinju-protocol/chinju-core
-**Charter:** [CHINJU Protocol Charter v1.0](../CHINJU_Charter_v1.0.md)
+**Charter:** [CHINJU Protocol Charter](../CHINJU_憲章.md)

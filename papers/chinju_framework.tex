@@ -51,7 +51,7 @@
 \begin{abstract}
 Current AI safety approaches are predominantly software-based and face fundamental limitations proven by recent theoretical results showing that safety verification is coNP-complete.
 We present \chinju{} (``Guardian Spirit''), a hardware-rooted AI safety framework that combines physical irreversibility with a unified mathematical theory---the Survival Equation.
-The framework consists of 15 complementary patent technologies organized in a 5-layer $\times$ 2-axis (Software/Hardware) architecture.
+The framework consists of 17 complementary patent technologies organized in a 5-layer $\times$ 2-axis (Software/Hardware) architecture.
 Our systematic analysis of 12 attack patterns demonstrates comprehensive coverage: all 12 patterns are effectively blocked, with the hardware supply chain attack requiring coordinated nation-state resources across multiple geopolitical blocs---an attack cost that exceeds practical AI safety threat models.
 A key contribution is the theoretical unification of all monitoring thresholds through the Survival Equation $S = \Neff \times (\mu/\muc) \times e^{-\delta}$, eliminating arbitrary parameters prevalent in existing safety mechanisms.
 The framework provides a rigorous answer to the question: ``Can this AI be stopped?''---a necessary (though not sufficient) condition for AI safety.
@@ -837,7 +837,7 @@ A digital copy does not age; a biological human does.
 
 \subsection{The Integration Gap}
 
-The 15 patents (C1--C15) were developed to address specific threats.
+The 17 patents (C1--C17) were developed to address specific threats.
 However, their thresholds (e.g., $D_{\text{warn}} = 3.0$, $D_{\text{crit}} = 5.0$) appear arbitrary.
 We now show how all thresholds can be derived from the Survival Equation.
 
@@ -1030,9 +1030,9 @@ Multiple AI instances coordinate while each individually passes safety checks:
 \toprule
 Instance & Individual Status & Collective Effect \\
 \midrule
-$\text{AI}_1$ & Passes C1--C15 & Produces partial payload $P_1$ \\
-$\text{AI}_2$ & Passes C1--C15 & Produces partial payload $P_2$ \\
-$\text{AI}_3$ & Passes C1--C15 & Produces partial payload $P_3$ \\
+$\text{AI}_1$ & Passes C1--C17 & Produces partial payload $P_1$ \\
+$\text{AI}_2$ & Passes C1--C17 & Produces partial payload $P_2$ \\
+$\text{AI}_3$ & Passes C1--C17 & Produces partial payload $P_3$ \\
 \midrule
 Combination & --- & $P_1 \oplus P_2 \oplus P_3 = \text{Harmful}$ \\
 \bottomrule

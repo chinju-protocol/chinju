@@ -92,7 +92,7 @@ Effect 3: Covert Communication Blocking
 Through output sanitization gateway, no matter how advanced steganography techniques AI uses to hide information in output, bit-level information is destroyed by semantic paraphrasing, analog transformation, and code normalization processes, blocking self-replication code or fragmentary extraction of weight data.
 
 Effect 4: Enforcement of Authentic Environment
-Through remote attestation, cryptographically guarantees that models only start in legitimate environments where safety mechanisms (C1-C12, etc.) are reliably operating.
+Through remote attestation, cryptographically guarantees that models only start in legitimate environments where safety mechanisms (C1-C17, etc.) are reliably operating.
 
 Effect 5: Resistance to Side-channel and Extraction Attacks
 Prevents physical information leakage by concealing timing and power patterns, and makes functional copy creation difficult through rate limiting and watermarking.

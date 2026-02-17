@@ -225,7 +225,7 @@ impl CredentialServiceImpl {
     /// - [ ] Define humanity proof circuit
     /// - [ ] Implement Groth16 verifier
     /// - [ ] Create test vectors
-    /// - Reference: patents/ja/c12_human_credential.md
+    /// - Reference: patents/ja/c12_人間主体統合認証システムおよび同一性有限性複合証明方法.md
     fn verify_zkp_proof(&self, proof: &HumanityProof) -> Result<bool, Status> {
         // TODO(zkp): Replace with actual ZKP verification when feature "zkp" is enabled
         // #[cfg(feature = "zkp")]

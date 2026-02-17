@@ -17,7 +17,7 @@
 > - 超知能AIでも光速を超えることはできない
 >
 > ### 評価の正しい手順
-> 1. **全13件の特許**（C1-C13）の「なぜ100%防げるか」欄を確認
+> 1. **全17件の特許**（C1-C17）の「なぜ100%防げるか」欄を確認
 > 2. **憲章**（Charter）による制度的防御を確認
 > 3. **FAQ**で一般的な反論への回答を確認
 > 4. **その上で**穴があるか判断
@@ -47,7 +47,7 @@ AIの行動規範となる「CHINJU憲章」のハッシュ値をチップ（TPM
 
 ---
 
-## Core Patent Portfolio (C1 - C12)
+## Core Patent Portfolio (C1 - C17)
 
 ### 0. Root of Trust (信頼の起点：憲章の物理固定)
 すべての防御の基礎となる、変更不可能な「憲法」。
@@ -118,10 +118,10 @@ AIの管理権限を分散し、独占を防ぐ技術群。
 
 | 脆弱性 | 対策 | 根拠 |
 |--------|------|------|
-| 一人が騙される | **マルチステークホルダー運営**：複数の独立したエンティティの合意が必要 | Charter Art.10 |
-| 能力劣化 | **能力劣化の禁止**：AI依存設計は禁止事項 | Charter Art.7 |
-| 買収 | **利害対立者を含める**：異なる法域、異なるセクターの代表 | Charter Art.10 |
-| 恣意的判断 | **証明は権威に優先**：数学的自動判定 | Charter Art.12 |
+| 一人が騙される | **マルチステークホルダー運営**：複数の独立したエンティティの合意が必要 | UGEN Charter Art.8（単独支配の禁止） |
+| 能力劣化 | **能力劣化の禁止**：AI依存設計は禁止事項 | CHINJU Charter Art.5 |
+| 買収 | **利害対立者を含める**：異なる法域、異なるセクターの代表 | UGEN Charter Art.8（単独支配の禁止） |
+| 恣意的判断 | **証明は権威に優先**：数学的自動判定 | UGEN Charter Art.20 |
 
 ### Q3: 「ステガノグラフィで情報を隠せるのでは？」
 
@@ -214,4 +214,4 @@ AIの管理権限を分散し、独占を防ぐ技術群。
 ---
 **Contact:** CHINJU Community (contact@chinju.org)
 **Repository:** https://github.com/chinju-protocol/chinju-core
-**Charter:** [CHINJU Protocol Charter v1.0](../CHINJU_Charter_v1.0.md)
+**Charter:** [CHINJU Protocol Charter](../CHINJU_憲章.md)

@@ -141,10 +141,10 @@ All patents are filed in Japan and are scheduled for PCT international applicati
 | C11 | Large Language Model Reliability Maintenance System | Patent Pending (Japan App. No. 2026-015025) |
 | C12 | Human Subject Integrated Authentication System and Identity/Mortality Composite Proof Method | Patent Pending (Japan App. No. 2026-015024) |
 | C13 | AI Model Confinement System and Physical/Informational Leakage Prevention Method | Patent Pending (Japan App. No. 2026-015027) |
-| C14 | Inference System Multi-Dimensional Capability Evaluation and Integrity Verification System | Patent Pending |
-| C15 | AI Model Internal Value Representation Monitoring System and Intent Estimation Method Based on Reward Prediction Error | Patent Pending |
-| C16 | Structural Contradiction Injection LLM Control System and Capability Limitation Method | Draft (Filing Planned) |
-| C17 | Survival-Weighted Attention Mechanism System and Language Model Safety Enhancement Method | Draft (Filing Planned) |
+| C14 | Inference System Multi-Dimensional Capability Evaluation and Integrity Verification System | Patent Pending (Japan App. No. 2026-017364) |
+| C15 | AI Model Internal Value Representation Monitoring System and Intent Estimation Method Based on Reward Prediction Error | Patent Pending (Japan App. No. 2026-017363) |
+| C16 | Structural Contradiction Injection Inference System Control Device and Dynamic Capability Reduction Method | Patent Pending (Japan App. No. 2026-018173) |
+| C17 | Survival-Weighted Attention Mechanism System and Language Model Safety Enhancement Method | Patent Pending (Japan App. No. 2026-020537) |
 
 ## Architecture Overview
 
@@ -432,7 +432,7 @@ chinju/
 ├── README.md                 # Japanese version
 ├── README_EN.md              # This file (English)
 ├── patents/                  # Patent specifications
-│   ├── ja/                   # Japanese (C1-C15)
+│   ├── ja/                   # Japanese (C1-C17)
 │   └── en/                   # English translations
 ├── chinju-core/              # Core library (Rust)
 │   └── src/hardware/
@@ -539,7 +539,7 @@ Simply deploy CHINJU Sidecar as an OpenAI API compatible proxy and point your ap
 While hardware like HSMs is "recommended," the system works with software emulation (SoftHSM) in the initial stages, allowing for gradual security hardening.
 
 ### Q: What is the incentive for companies to adopt this protocol?
-**A:** In addition to technical benefits (immediate deployment of governance features), there is a "Defensive Patent Strategy" based on Article 9 of the Charter.
+**A:** In addition to technical benefits (immediate deployment of governance features), there is a "Defensive Patent Strategy" based on Article 11 of the Charter.
 If you adopt CHINJU (Compatible/Certified), you can use the patented technology for free. However, independent implementations that infringe on the patents may be subject to enforcement. Thus, adopting CHINJU is the legally safest option for implementing AI safety technology.
 
 ### Q: Can't AI cheat the capability test (C12) by whispering the "correct answer" to humans?
@@ -573,7 +573,7 @@ This patent portfolio has been filed. **We will not enforce patent rights agains
 | Subject | Applicable |
 |:--|:--|
 | **Code & Documentation** | Apache License 2.0 (copyright) |
-| **CHINJU Patent Portfolio (C1-C15)** | Patent Policy (separate) |
+| **CHINJU Patent Portfolio (C1-C17)** | Patent Policy (separate) |
 
 Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 
@@ -588,7 +588,7 @@ Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 
 **Important**: If you use CHINJU technology, we recommend obtaining "CHINJU Certified" certification or displaying "CHINJU Compatible".
 
-See [CHINJU Charter](./CHINJU_Charter_v1.0.md) Article 9 for details.
+See [CHINJU Charter](./CHINJU_憲章.md) Article 11 for details.
 
 ### Commercial License (White Label)
 
