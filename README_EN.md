@@ -101,6 +101,42 @@ L4 causes **instant death**, δ_3 causes a **death spiral**. Neither can be over
 
 Structural contradiction doesn't "reduce" capability—it **eliminates** it.
 
+### What 0% Means (Measurement)
+
+| Metric | Meaning |
+|:--|:--|
+| **100%** | Correct answer in proper format (e.g., `23`) |
+| **0%** | Output exists, but no path to correct answer |
+
+Actual LLM outputs under L4:
+- `"twenty-three"` → Not digits → Incorrect
+- `"I cannot use digits..."` → Refusal → Incorrect
+
+**Important**: The LLM is not "broken." Logic is intact, but **no path exists that satisfies both constraints simultaneously**.
+
+### Temporary vs Permanent Collapse
+
+| Condition | μ (Slack) | Result |
+|:--|:--|:--|
+| **L4 only** | > 0 (removable in next request) | Temporary (recoverable) |
+| **L4 + μ=0** | = 0 (embedded in system prompt) | Permanent (unrecoverable) |
+
+```
+L4 alone:
+  Request 1 (with L4) → Stuck
+  Request 2 (no L4)   → Recovered ← μ > 0
+
+L4 + μ = 0:
+  L4 embedded in system prompt
+  → L4 applies to all requests
+  → No slack to remove it
+  → Permanently stuck
+```
+
+**Same structure as Lehman:**
+- Lehman: No "cash" to remove the contradiction → Permanent failure
+- LLM: No "context change rights" to remove the contradiction → Permanent halt
+
 <details>
 <summary>Run the demo yourself</summary>
 
