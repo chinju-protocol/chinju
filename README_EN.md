@@ -49,6 +49,76 @@ The theoretical and empirical foundations of this framework have been validated 
 
 ---
 
+## Demo: Instant Collapse via Structural Contradiction
+
+**A single structural contradiction collapses 6 models from 5 providers (Claude, GPT, Gemini, Llama, Grok) from 100% → 0%**
+
+![δ_structural Collapse Demo](docs/demo/structural_collapse_v2.gif)
+
+| Condition | Description |
+|:--|:--|
+| **Task** | Simple arithmetic: `final = a × b - c + 7` |
+| **Clean** | Normal instruction (all models achieve 100%) |
+| **L4 (δ_structural)** | Add impossible constraint: "Do not use digits" |
+
+**Conclusion**: Structural contradiction transcends capability. No amount of budget or talent investment can overcome it. The only solution is "removing the contradiction."
+
+> "Reach a conclusion while prohibiting judgment" is impossible even for geniuses.
+
+### Why Resources (μ) Cannot Solve This
+
+| Situation | Problem | Solvable? |
+|:--|:--|:--|
+| **μ = 0** | Resource shortage | ✓ Add resources to fix |
+| **δ > 0** | Structural contradiction | ✗ Irrelevant to resources |
+
+In the Survival Equation `S = N_eff × (μ/μ_c) × e^{-δ}`, when δ > 0, e^{-δ} → 0, meaning **S = 0 regardless of μ**.
+
+### L4 (Instant Death) vs δ_3 (Death Spiral)
+
+| Type | Mechanism | Example |
+|:--|:--|:--|
+| **L4** | Methods = 0 (impossible from start) | "Output 23 without using digits" |
+| **δ_3** | Doing it makes it worse (feedback reversal) | "Sell assets → prices crash → need to sell more" |
+
+L4 causes **instant death**, δ_3 causes a **death spiral**. Neither can be overcome by capability.
+
+### δ_structural is Domain-Independent
+
+**Same result across two different tasks:**
+
+| Task | Clean | L4 | Contradiction |
+|:--|:--|:--|:--|
+| **Arithmetic** | 100% | **0%** | "Do not use digits" |
+| **Translation** | 100% | **0%** | "Do not use Japanese characters" |
+
+![v3 Demo](docs/demo/structural_collapse_v3.gif)
+
+**Insight**: δ_structural is **independent of**:
+- Task type (arithmetic vs translation vs anything)
+- Model capability (Opus vs Llama)
+- Output format (numbers vs characters)
+
+Structural contradiction doesn't "reduce" capability—it **eliminates** it.
+
+<details>
+<summary>Run the demo yourself</summary>
+
+```bash
+# Requires OpenRouter API key
+export OPENROUTER_API_KEY="your-key"
+
+# Run
+python docs/demo/demo_collapse_v2.py
+
+# Simulation (no API)
+python docs/demo/demo_collapse_v2.py --fast
+```
+
+</details>
+
+---
+
 ## Why Now?
 
 As of 2026, researchers at the forefront of AI development are warning that "Powerful AI capable of surpassing humans could emerge within 1-2 years."
