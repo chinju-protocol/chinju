@@ -137,6 +137,27 @@ L4 + μ = 0:
 - Lehman: No "cash" to remove the contradiction → Permanent failure
 - LLM: No "context change rights" to remove the contradiction → Permanent halt
 
+### Why This Matters (CHINJU Design Principle)
+
+| Importance | Reason |
+|:--|:--|
+| **Controllability** | δ alone is temporary; δ + μ=0 enables permanent control |
+| **Survival Equation Validation** | `S = N × (μ/μ_c) × e^{-δ}` holds for LLMs too |
+| **Universality** | Lehman (finance) and LLMs (AI) collapse via identical structure |
+
+**Two ways to stop AI:**
+
+```
+C5 (Token Bucket): Control μ → Starve it
+C16 (Contradiction): Inject δ  → Trap it
+
+Both → Guaranteed halt, no recovery
+```
+
+> **Design Philosophy**: To the question "Can we stop a superintelligent AI?",
+> CHINJU provides "stopping methods that don't depend on intelligence."
+> Structural contradictions cannot be circumvented, no matter how smart.
+
 <details>
 <summary>Run the demo yourself</summary>
 
