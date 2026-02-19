@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+  # No fixed upgrade is available for rsa 0.9.x yet.
+  "RUSTSEC-2023-0071",
+  # Comes via ark-relations -> tracing-subscriber 0.2.x. Track upstream.
+  "RUSTSEC-2025-0055",
+]

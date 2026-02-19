@@ -10,6 +10,15 @@ Thank you for your interest in contributing to CHINJU.
 - Maintainers will reply in the same language when possible.
 - If a source document is currently Japanese-only, open an English issue and we will help map it to the relevant section.
 
+## Repository Policy (Monorepo)
+
+CHINJU currently uses a monorepo to keep safety-spec changes and implementation changes synchronized.
+
+We consider splitting repositories only when one or more of the following becomes true:
+- Teams are fully separated and need independent release cadences.
+- Stronger permission isolation is required (for example, enclave code managed separately).
+- CI duration or review contention reaches an operational limit.
+
 ## Contribution Areas
 
 ### 1. GPU Validation (Difficulty: ⭐)
