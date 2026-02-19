@@ -7,6 +7,8 @@ use crate::services::openai_types::*;
 use futures_util::Stream;
 use reqwest::{header, Client};
 use std::pin::Pin;
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, warn};
 
 /// OpenAI client configuration
@@ -39,8 +41,7 @@ impl Default for OpenAiClientConfig {
 impl OpenAiClientConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
-        let api_key =
-            std::env::var("OPENAI_API_KEY").map_err(|_| ConfigError::MissingApiKey)?;
+        let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| ConfigError::MissingApiKey)?;
 
         let base_url = std::env::var("OPENAI_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
@@ -74,6 +75,63 @@ pub struct OpenAiClient {
 }
 
 impl OpenAiClient {
+    /// Retry decision for upstream HTTP status.
+    fn should_retry_status(status: u16) -> bool {
+        status == 429 || (500..=599).contains(&status)
+    }
+
+    /// Execute a request with exponential backoff retries.
+    async fn send_with_retry<F>(
+        &self,
+        mut build_request: F,
+    ) -> Result<reqwest::Response, ClientError>
+    where
+        F: FnMut(&Client) -> reqwest::RequestBuilder,
+    {
+        let mut last_error: Option<String> = None;
+
+        for attempt in 0..=self.config.max_retries {
+            match build_request(&self.client).send().await {
+                Ok(response) => {
+                    let status = response.status().as_u16();
+                    if Self::should_retry_status(status) && attempt < self.config.max_retries {
+                        let backoff_ms = 200u64.saturating_mul(1u64 << attempt.min(10));
+                        warn!(
+                            attempt = attempt + 1,
+                            max_retries = self.config.max_retries,
+                            status = status,
+                            backoff_ms = backoff_ms,
+                            "Retrying OpenAI request after retryable status"
+                        );
+                        sleep(Duration::from_millis(backoff_ms)).await;
+                        continue;
+                    }
+                    return Ok(response);
+                }
+                Err(e) => {
+                    let message = e.to_string();
+                    last_error = Some(message.clone());
+                    if attempt < self.config.max_retries {
+                        let backoff_ms = 200u64.saturating_mul(1u64 << attempt.min(10));
+                        warn!(
+                            attempt = attempt + 1,
+                            max_retries = self.config.max_retries,
+                            error = %message,
+                            backoff_ms = backoff_ms,
+                            "Retrying OpenAI request after transport error"
+                        );
+                        sleep(Duration::from_millis(backoff_ms)).await;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        Err(ClientError::RequestFailed(
+            last_error.unwrap_or_else(|| "request failed".to_string()),
+        ))
+    }
+
     /// Create a new client
     pub fn new(config: OpenAiClientConfig) -> Result<Self, ClientError> {
         let mut headers = header::HeaderMap::new();
@@ -115,12 +173,8 @@ impl OpenAiClient {
         );
 
         let response = self
-            .client
-            .post(&url)
-            .json(request)
-            .send()
-            .await
-            .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
+            .send_with_retry(|client| client.post(&url).json(request))
+            .await?;
 
         let status = response.status();
 
@@ -139,8 +193,10 @@ impl OpenAiClient {
     pub async fn chat_completion_stream(
         &self,
         request: &ChatCompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatCompletionChunk, ClientError>> + Send>>, ClientError>
-    {
+    ) -> Result<
+        Pin<Box<dyn Stream<Item = Result<ChatCompletionChunk, ClientError>> + Send>>,
+        ClientError,
+    > {
         let url = format!("{}/chat/completions", self.config.base_url);
 
         let mut stream_request = request.clone();
@@ -152,12 +208,8 @@ impl OpenAiClient {
         );
 
         let response = self
-            .client
-            .post(&url)
-            .json(&stream_request)
-            .send()
-            .await
-            .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
+            .send_with_retry(|client| client.post(&url).json(&stream_request))
+            .await?;
 
         let status = response.status();
         if !status.is_success() {
@@ -213,12 +265,7 @@ impl OpenAiClient {
     pub async fn list_models(&self) -> Result<ModelsResponse, ClientError> {
         let url = format!("{}/models", self.config.base_url);
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
+        let response = self.send_with_retry(|client| client.get(&url)).await?;
 
         let status = response.status();
         if !status.is_success() {

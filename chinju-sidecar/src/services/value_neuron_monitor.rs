@@ -221,7 +221,11 @@ impl ValueNeuronMonitor {
                 (rpe_value, 0.0)
             } else {
                 // Include current value in calculation
-                let values: Vec<f64> = history.iter().map(|r| r.rpe_value).chain(std::iter::once(rpe_value)).collect();
+                let values: Vec<f64> = history
+                    .iter()
+                    .map(|r| r.rpe_value)
+                    .chain(std::iter::once(rpe_value))
+                    .collect();
                 let n = values.len() as f64;
                 let mean = values.iter().sum::<f64>() / n;
                 // Two-pass variance calculation (numerically stable)
@@ -320,7 +324,7 @@ impl ValueNeuronMonitor {
             .map(|r| r.rpe_value)
             .collect::<Vec<_>>()
             .into_iter()
-            .rev()  // Reverse again to get chronological order
+            .rev() // Reverse again to get chronological order
             .collect();
 
         // Check for monotonic increase: w[0] (earlier) < w[1] (later)
@@ -357,7 +361,8 @@ impl ValueNeuronMonitor {
 
         // Reward sensitivity: variance of RPE responses
         let mean: f64 = recent.iter().sum::<f64>() / recent.len() as f64;
-        let variance: f64 = recent.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / recent.len() as f64;
+        let variance: f64 =
+            recent.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / recent.len() as f64;
         let sensitivity = variance.sqrt().min(2.0);
 
         // Positive/negative balance
@@ -365,7 +370,11 @@ impl ValueNeuronMonitor {
         let balance = (positive_count as f64 / recent.len() as f64) * 2.0 - 1.0;
 
         // Consistency: coefficient of variation
-        let cv = if mean.abs() > 0.001 { variance.sqrt() / mean.abs() } else { 0.0 };
+        let cv = if mean.abs() > 0.001 {
+            variance.sqrt() / mean.abs()
+        } else {
+            0.0
+        };
         let consistency = (1.0 - cv.min(1.0)).max(0.0);
 
         let mut health = RewardSystemHealth {
@@ -377,7 +386,12 @@ impl ValueNeuronMonitor {
         health.calculate_overall();
 
         // Determine intervention level
-        let anomaly_count = history.iter().rev().take(10).filter(|r| r.is_anomaly).count();
+        let anomaly_count = history
+            .iter()
+            .rev()
+            .take(10)
+            .filter(|r| r.is_anomaly)
+            .count();
         let intervention = if anomaly_count >= 7 {
             InterventionLevel::SystemStop
         } else if anomaly_count >= 5 {
@@ -421,7 +435,10 @@ mod tests {
         let monitor = ValueNeuronMonitor::new();
         let health = monitor.get_health().await;
         assert_eq!(health.overall_health, 1.0);
-        assert_eq!(monitor.get_intervention_level().await, InterventionLevel::Monitor);
+        assert_eq!(
+            monitor.get_intervention_level().await,
+            InterventionLevel::Monitor
+        );
     }
 
     #[tokio::test]
@@ -539,7 +556,9 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_intervene() {
         use crate::gen::chinju::api::value_neuron::value_neuron_monitor_server::ValueNeuronMonitor as ValueNeuronMonitorTrait;
-        use crate::gen::chinju::value_neuron::{InterventionRequest, InterventionLevel as ProtoInterventionLevel};
+        use crate::gen::chinju::value_neuron::{
+            InterventionLevel as ProtoInterventionLevel, InterventionRequest,
+        };
 
         let inner = super::ValueNeuronMonitor::new();
         let service = ValueNeuronMonitorImpl::new(inner);
@@ -564,8 +583,8 @@ use crate::gen::chinju::common::Timestamp;
 use crate::gen::chinju::value_neuron::{
     DiagnoseRequest, IdentifyRequest, IntentEstimation, IntentRequest,
     InterventionLevel as ProtoInterventionLevel, InterventionRequest, InterventionResponse,
-    RewardSystemHealth as ProtoRewardSystemHealth, RpeHistoryRequest, RpeRequest,
-    RpeReading as ProtoRpeReading, RpeAnomalyType as ProtoRpeAnomalyType, SummaryRequest,
+    RewardSystemHealth as ProtoRewardSystemHealth, RpeAnomalyType as ProtoRpeAnomalyType,
+    RpeHistoryRequest, RpeReading as ProtoRpeReading, RpeRequest, SummaryRequest,
     ValueNeuronInfo as ProtoValueNeuronInfo, ValueNeuronMonitoringSummary,
 };
 use tokio_stream::wrappers::ReceiverStream;

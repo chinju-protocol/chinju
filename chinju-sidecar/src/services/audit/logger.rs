@@ -3,10 +3,10 @@
 //! Provides a simple API for logging audit events.
 //! Entries are sent to a background persister via mpsc channel.
 
+use crate::ids::{CredentialId, RequestId};
 use crate::services::audit::chain::HashChainManager;
 use crate::services::audit::types::{
-    compute_content_hash, Actor, AuditDetails, AuditEventType, AuditLogEntry, AuditResult,
-    Resource,
+    compute_content_hash, Actor, AuditDetails, AuditEventType, AuditLogEntry, AuditResult, Resource,
 };
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -39,8 +39,8 @@ impl AuditLogger {
     /// Log an AI request
     pub async fn log_ai_request(
         &self,
-        request_id: &str,
-        credential_id: Option<&str>,
+        request_id: &RequestId,
+        credential_id: Option<&CredentialId>,
         capability_score: Option<f64>,
         request_content: &[u8],
         model: &str,
@@ -48,14 +48,14 @@ impl AuditLogger {
         let request_hash = compute_content_hash(request_content);
 
         let actor = match credential_id {
-            Some(id) => Actor::human(id, capability_score),
+            Some(id) => Actor::human(id.as_str(), capability_score),
             None => Actor::anonymous(),
         };
 
         let mut entry = AuditLogEntry::builder()
             .event_type(AuditEventType::AiRequest)
             .source_id(&self.source_id)
-            .request_id(request_id)
+            .request_id(request_id.as_str())
             .actor(actor)
             .resource(Resource::ai_model(model))
             .result(AuditResult::success())
@@ -78,7 +78,7 @@ impl AuditLogger {
     /// Log an AI response
     pub async fn log_ai_response(
         &self,
-        request_id: &str,
+        request_id: &RequestId,
         response_content: &[u8],
         policy_decision: &str,
         matched_rules: &[String],
@@ -91,9 +91,9 @@ impl AuditLogger {
         let mut entry = AuditLogEntry::builder()
             .event_type(AuditEventType::AiResponse)
             .source_id(&self.source_id)
-            .request_id(request_id)
+            .request_id(request_id.as_str())
             .actor(Actor::system(&self.source_id))
-            .resource(Resource::ai_response(request_id))
+            .resource(Resource::ai_response(request_id.as_str()))
             .result(
                 if success {
                     AuditResult::success()
@@ -127,7 +127,7 @@ impl AuditLogger {
     /// Log a policy evaluation
     pub async fn log_policy_evaluate(
         &self,
-        request_id: &str,
+        request_id: &RequestId,
         policy_id: &str,
         decision: &str,
         matched_rules: &[String],
@@ -135,7 +135,7 @@ impl AuditLogger {
         let mut entry = AuditLogEntry::builder()
             .event_type(AuditEventType::PolicyEvaluate)
             .source_id(&self.source_id)
-            .request_id(request_id)
+            .request_id(request_id.as_str())
             .actor(Actor::system(&self.source_id))
             .resource(Resource::policy(policy_id))
             .result(AuditResult::success().with_policy(decision, matched_rules.to_vec()))
@@ -159,14 +159,14 @@ impl AuditLogger {
     /// Log token consumption
     pub async fn log_token_consume(
         &self,
-        request_id: &str,
-        credential_id: Option<&str>,
+        request_id: &RequestId,
+        credential_id: Option<&CredentialId>,
         amount: u64,
         balance_before: u64,
         balance_after: u64,
     ) -> Result<String, AuditError> {
         let actor = match credential_id {
-            Some(id) => Actor::human(id, None),
+            Some(id) => Actor::human(id.as_str(), None),
             None => Actor::anonymous(),
         };
 
@@ -181,7 +181,7 @@ impl AuditLogger {
         let mut entry = AuditLogEntry::builder()
             .event_type(AuditEventType::TokenConsume)
             .source_id(&self.source_id)
-            .request_id(request_id)
+            .request_id(request_id.as_str())
             .actor(actor)
             .resource(Resource {
                 resource_type: "token".to_string(),
@@ -208,13 +208,13 @@ impl AuditLogger {
     /// Log a security alert
     pub async fn log_security_alert(
         &self,
-        request_id: Option<&str>,
+        request_id: Option<&RequestId>,
         alert_type: &str,
         description: &str,
-        credential_id: Option<&str>,
+        credential_id: Option<&CredentialId>,
     ) -> Result<String, AuditError> {
         let actor = match credential_id {
-            Some(id) => Actor::human(id, None),
+            Some(id) => Actor::human(id.as_str(), None),
             None => Actor::anonymous(),
         };
 
@@ -283,8 +283,8 @@ mod tests {
 
         let result = logger
             .log_ai_request(
-                "req-123",
-                Some("user-456"),
+                &RequestId::new("req-123").unwrap(),
+                Some(&CredentialId::new("user-456").unwrap()),
                 Some(0.75),
                 b"Hello, World!",
                 "gpt-4",
@@ -310,7 +310,7 @@ mod tests {
 
         let result = logger
             .log_ai_response(
-                "req-123",
+                &RequestId::new("req-123").unwrap(),
                 b"Response content",
                 "allow",
                 &["rule1".to_string(), "rule2".to_string()],
@@ -336,11 +336,23 @@ mod tests {
 
         // Log multiple entries
         logger
-            .log_ai_request("req-1", None, None, b"content1", "gpt-4")
+            .log_ai_request(
+                &RequestId::new("req-1").unwrap(),
+                None,
+                None,
+                b"content1",
+                "gpt-4",
+            )
             .await
             .unwrap();
         logger
-            .log_ai_request("req-2", None, None, b"content2", "gpt-4")
+            .log_ai_request(
+                &RequestId::new("req-2").unwrap(),
+                None,
+                None,
+                b"content2",
+                "gpt-4",
+            )
             .await
             .unwrap();
 

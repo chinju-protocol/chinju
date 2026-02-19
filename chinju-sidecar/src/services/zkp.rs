@@ -197,10 +197,7 @@ impl ZkpVerifier {
 
     /// Parse public inputs from public_params field
     #[cfg(feature = "zkp")]
-    fn parse_public_inputs(
-        &self,
-        proof: &HumanityProof,
-    ) -> Result<Vec<ark_bn254::Fr>, ZkpError> {
+    fn parse_public_inputs(&self, proof: &HumanityProof) -> Result<Vec<ark_bn254::Fr>, ZkpError> {
         use ark_ff::PrimeField;
 
         // The public inputs are in the public_params field as serialized bytes
@@ -241,10 +238,7 @@ impl ZkpVerifier {
 
         // Mock: Check minimum data length (real proofs are ~192 bytes)
         if proof.zkp_data.len() < 32 {
-            warn!(
-                len = proof.zkp_data.len(),
-                "Mock ZKP: proof data too short"
-            );
+            warn!(len = proof.zkp_data.len(), "Mock ZKP: proof data too short");
             return Ok(false);
         }
 
@@ -318,8 +312,8 @@ mod tests {
         let verifier = ZkpVerifier::new();
 
         let proof = HumanityProof {
-            proof_type: 1, // CAPABILITY_TEST
-            zkp_data: vec![0u8; 192], // Minimum realistic proof size
+            proof_type: 1,                // CAPABILITY_TEST
+            zkp_data: vec![0u8; 192],     // Minimum realistic proof size
             public_params: vec![0u8; 64], // Two field elements
             degradation: None,
             generated_at: None,

@@ -3,6 +3,7 @@
 //! Domain-specific error types with automatic gRPC Status conversion.
 //! Provides structured error handling across all services.
 
+use crate::ids::IdError;
 use thiserror::Error;
 use tonic::Status;
 
@@ -104,12 +105,13 @@ pub enum TokenError {
 impl From<TokenError> for Status {
     fn from(err: TokenError) -> Self {
         match err {
-            TokenError::InsufficientBalance { available, required } => {
-                Status::resource_exhausted(format!(
-                    "Insufficient balance: {} available, {} required",
-                    available, required
-                ))
-            }
+            TokenError::InsufficientBalance {
+                available,
+                required,
+            } => Status::resource_exhausted(format!(
+                "Insufficient balance: {} available, {} required",
+                available, required
+            )),
             TokenError::Unavailable => Status::unavailable("Token service unavailable"),
             TokenError::InvalidAmount(msg) => Status::invalid_argument(msg),
         }
@@ -140,6 +142,27 @@ pub enum GatewayError {
 
     #[error("AI service temporarily unavailable")]
     ServiceUnavailable,
+
+    #[error("Upstream authentication failed")]
+    UpstreamAuthenticationFailed,
+
+    #[error("Upstream request forbidden")]
+    UpstreamForbidden,
+
+    #[error("Upstream rate limit exceeded")]
+    UpstreamRateLimited,
+
+    #[error("Upstream service unavailable")]
+    UpstreamUnavailable,
+
+    #[error("Upstream request failed")]
+    UpstreamRequestFailed,
+
+    #[error("Request requires human escalation")]
+    EscalationRequired,
+
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
 }
 
 impl From<GatewayError> for Status {
@@ -163,6 +186,23 @@ impl From<GatewayError> for Status {
             GatewayError::ServiceUnavailable => {
                 Status::unavailable("AI service temporarily unavailable")
             }
+            GatewayError::UpstreamAuthenticationFailed => {
+                Status::unauthenticated("Upstream authentication failed")
+            }
+            GatewayError::UpstreamForbidden => {
+                Status::permission_denied("Upstream request forbidden")
+            }
+            GatewayError::UpstreamRateLimited => {
+                Status::resource_exhausted("Upstream rate limit exceeded")
+            }
+            GatewayError::UpstreamUnavailable => {
+                Status::unavailable("Upstream service unavailable")
+            }
+            GatewayError::UpstreamRequestFailed => Status::internal("Upstream request failed"),
+            GatewayError::EscalationRequired => {
+                Status::failed_precondition("Request requires human escalation")
+            }
+            GatewayError::InvalidRequest(msg) => Status::invalid_argument(msg),
         }
     }
 }
@@ -222,12 +262,9 @@ pub enum CapabilityError {
 impl From<CapabilityError> for Status {
     fn from(err: CapabilityError) -> Self {
         match err {
-            CapabilityError::ComplexityExceeded { score, threshold } => {
-                Status::permission_denied(format!(
-                    "Complexity {:.2} exceeds threshold {:.2}",
-                    score, threshold
-                ))
-            }
+            CapabilityError::ComplexityExceeded { score, threshold } => Status::permission_denied(
+                format!("Complexity {:.2} exceeds threshold {:.2}", score, threshold),
+            ),
             CapabilityError::DriftDetected { p_value } => {
                 Status::failed_precondition(format!("Drift detected: p-value {:.4}", p_value))
             }
@@ -319,9 +356,7 @@ impl From<ContradictionError> for Status {
             ContradictionError::CollapseDetected { collapse_type } => {
                 Status::failed_precondition(format!("Model collapse: {}", collapse_type))
             }
-            ContradictionError::SessionDegraded => {
-                Status::unavailable("Session in degraded state")
-            }
+            ContradictionError::SessionDegraded => Status::unavailable("Session in degraded state"),
             ContradictionError::ContextLimitExceeded { tokens } => {
                 Status::resource_exhausted(format!("Context limit: {} tokens", tokens))
             }
@@ -414,6 +449,9 @@ pub enum ChinjuError {
     #[error(transparent)]
     SurvivalAttention(#[from] SurvivalAttentionError),
 
+    #[error(transparent)]
+    Id(#[from] IdError),
+
     /// Internal error (details hidden from client)
     #[error("Internal error: {0}")]
     Internal(String),
@@ -434,6 +472,7 @@ impl From<ChinjuError> for Status {
             ChinjuError::ValueNeuron(e) => e.into(),
             ChinjuError::Contradiction(e) => e.into(),
             ChinjuError::SurvivalAttention(e) => e.into(),
+            ChinjuError::Id(e) => Status::invalid_argument(e.to_string()),
             ChinjuError::Internal(msg) => Status::internal(msg),
             ChinjuError::Config(msg) => Status::failed_precondition(msg),
         }
@@ -450,6 +489,7 @@ pub type ChinjuResult<T> = Result<T, ChinjuError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ids::RequestId;
 
     #[test]
     fn test_credential_error_to_status() {
@@ -482,6 +522,28 @@ mod tests {
         let err = GatewayError::DeadMansSwitchTriggered;
         let status: Status = err.into();
         assert_eq!(status.code(), tonic::Code::Unavailable);
+    }
+
+    #[test]
+    fn test_gateway_upstream_errors_to_status() {
+        let status: Status = GatewayError::UpstreamAuthenticationFailed.into();
+        assert_eq!(status.code(), tonic::Code::Unauthenticated);
+
+        let status: Status = GatewayError::UpstreamForbidden.into();
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+
+        let status: Status = GatewayError::UpstreamRateLimited.into();
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+
+        let status: Status = GatewayError::UpstreamUnavailable.into();
+        assert_eq!(status.code(), tonic::Code::Unavailable);
+    }
+
+    #[test]
+    fn test_id_error_to_status() {
+        let err = RequestId::new("bad request id").unwrap_err();
+        let status: Status = ChinjuError::from(err).into();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
     }
 
     #[test]

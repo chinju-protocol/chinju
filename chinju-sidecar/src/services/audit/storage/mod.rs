@@ -24,11 +24,21 @@ pub trait StorageBackend: Send + Sync {
     async fn query(&self, query: &AuditQuery) -> Result<Vec<AuditLogEntry>, StorageError>;
 
     /// Get entries by sequence range (for chain verification)
-    async fn get_range(&self, from_seq: u64, to_seq: u64)
-        -> Result<Vec<AuditLogEntry>, StorageError>;
+    async fn get_range(
+        &self,
+        from_seq: u64,
+        to_seq: u64,
+    ) -> Result<Vec<AuditLogEntry>, StorageError>;
 
     /// Rotate logs (archive old entries)
     async fn rotate(&self, cutoff: DateTime<Utc>) -> Result<RotationResult, StorageError>;
+
+    /// Verify integrity of persisted logs.
+    ///
+    /// Backends that support tamper-evident storage should override this.
+    async fn verify_integrity(&self) -> Result<(), StorageError> {
+        Ok(())
+    }
 }
 
 /// Query parameters for audit log search
@@ -87,6 +97,10 @@ pub struct RotationResult {
     pub archive_path: String,
     /// Hash of the archive (for integrity verification)
     pub archive_hash: String,
+    /// Optional archive signature (tamper-evident metadata)
+    pub archive_signature: Option<String>,
+    /// Optional signature file path
+    pub archive_signature_path: Option<String>,
 }
 
 /// Storage errors

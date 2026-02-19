@@ -2,6 +2,14 @@
 
 CHINJUプロジェクトへの貢献に興味を持っていただきありがとうございます。
 
+[English version (CONTRIBUTING_EN.md)](./CONTRIBUTING_EN.md)
+
+## 言語ポリシー
+
+- Issue / PR は日本語・英語のどちらでも受け付けます
+- メンテナは可能な限り投稿言語で返信します
+- 日本語のみの仕様文書がある場合も、Issueで英語質問を歓迎します
+
 ## 貢献の種類
 
 ### 1. GPU環境での検証 (難易度: ⭐)
@@ -131,12 +139,12 @@ mirroring the existing vLLM implementation.
 
 - GitHub Issues: バグ報告、機能リクエスト
 - GitHub Discussions: 設計相談、質問
+- 行動規範違反の非公開報告: `contact@chinju.org`
 
 ## 行動規範
 
-- 敬意を持ったコミュニケーション
-- 建設的なフィードバック
-- 多様な視点の尊重
+行動規範は [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)（English）を参照してください。
+日本語での質問・相談も歓迎します。
 
 ---
 

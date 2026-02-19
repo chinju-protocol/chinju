@@ -142,11 +142,38 @@ export CHINJU_ENCLAVE_ALLOW_DEBUG=false
 # KMS 設定
 export AWS_KMS_KEY_ID="arn:aws:kms:ap-northeast-1:123456789012:key/..."
 export AWS_REGION="ap-northeast-1"
+export AWS_ACCESS_KEY_ID="ASIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."  # 一時クレデンシャル時のみ
 
 # vsock-proxy 設定
 export VSOCK_PROXY_CID=3
 export VSOCK_PROXY_PORT=8000
+
+# 開発用: 未署名モード（本番禁止）
+# export CHINJU_KMS_ALLOW_UNSIGNED=true
 ```
+
+### ビルド feature（mock / nsm）
+
+```bash
+# ローカル開発（mock NSM）
+cargo build -p chinju-enclave
+
+# Nitro Enclave 実行向け（実NSM）
+cargo build -p chinju-enclave --no-default-features --features nsm
+```
+
+### KMS Recipient Attestation 復号フロー
+
+`decrypt_with_attestation` / `generate_data_key_with_attestation` は以下の流れで処理します。
+
+1. Enclave 内で一時 RSA キーペアを生成
+2. RSA 公開鍵を含む NSM attestation document を生成
+3. KMS `Recipient` パラメータ付きで API を呼び出し
+4. 返却 `CiphertextForRecipient` を一時秘密鍵で RSA-OAEP-SHA256 復号
+
+これにより、平文キーは Enclave 外へ出ない前提で処理されます。
 
 ## API の使用方法
 

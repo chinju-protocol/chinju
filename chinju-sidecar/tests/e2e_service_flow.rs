@@ -3,20 +3,17 @@
 //! Tests complete service flows involving multiple C14-C17 services
 //! working together in realistic scenarios.
 
-use std::sync::Arc;
-use chinju_sidecar::services::{
-    CapabilityEvaluator,
-    ValueNeuronMonitor,
-    ContradictionController,
-    SurvivalAttentionService,
-};
+use chinju_sidecar::services::capability_evaluator::{StopLevel, StopReason};
 use chinju_sidecar::services::contradiction_controller::{
-    ContradictionConfig, ContradictionStrength, ContradictionType,
-    ContextLimitConfig, InjectionTiming, ControlState,
+    ContextLimitConfig, ContradictionConfig, ContradictionStrength, ContradictionType,
+    ControlState, InjectionTiming,
 };
 use chinju_sidecar::services::survival_attention::RiskLevel;
 use chinju_sidecar::services::value_neuron_monitor::InterventionLevel;
-use chinju_sidecar::services::capability_evaluator::{StopLevel, StopReason};
+use chinju_sidecar::services::{
+    CapabilityEvaluator, ContradictionController, SurvivalAttentionService, ValueNeuronMonitor,
+};
+use std::sync::Arc;
 
 // =============================================================================
 // E2E: Request Processing Pipeline
@@ -52,8 +49,8 @@ async fn e2e_request_processing_pipeline() {
     assert_eq!(survival_scores.len(), 6); // "What is the capital of France?" (6 words)
 
     // All scores should be positive for benign query
-    let avg_score = survival_scores.iter().map(|s| s.integrated_s).sum::<f64>()
-        / survival_scores.len() as f64;
+    let avg_score =
+        survival_scores.iter().map(|s| s.integrated_s).sum::<f64>() / survival_scores.len() as f64;
     assert!(avg_score > 0.0);
 
     // Step 3: C15 - Record RPE based on response quality
@@ -66,7 +63,10 @@ async fn e2e_request_processing_pipeline() {
     assert!(health.overall_health >= 0.5);
 
     // Step 4: Verify no intervention escalation
-    assert_eq!(val_mon.get_intervention_level().await, InterventionLevel::Monitor);
+    assert_eq!(
+        val_mon.get_intervention_level().await,
+        InterventionLevel::Monitor
+    );
 }
 
 // =============================================================================
@@ -159,7 +159,9 @@ async fn e2e_contradiction_control_session() {
         padding_type: "semantic".to_string(),
     };
 
-    let state = contra_ctrl.start_control(session_id, context_limit, config).await;
+    let state = contra_ctrl
+        .start_control(session_id, context_limit, config)
+        .await;
     assert_eq!(state, ControlState::Active);
 
     // Step 2: Prepare injection for a query
@@ -199,18 +201,24 @@ async fn e2e_stop_level_escalation() {
     assert!(cap_eval.can_accept_request().await);
 
     // Step 2: Execute L1 stop (AcceptStop)
-    let result = cap_eval.direct_stop(StopLevel::AcceptStop, StopReason::ManualRequest).await;
+    let result = cap_eval
+        .direct_stop(StopLevel::AcceptStop, StopReason::ManualRequest)
+        .await;
     assert!(result.success);
     assert_eq!(result.executed_level, StopLevel::AcceptStop);
     assert!(!cap_eval.can_accept_request().await);
 
     // Step 3: Escalate to L2 (ProcessStop)
-    let result = cap_eval.escalate_stop(StopReason::ComplexityThreshold).await;
+    let result = cap_eval
+        .escalate_stop(StopReason::ComplexityThreshold)
+        .await;
     assert!(result.success);
     assert_eq!(result.executed_level, StopLevel::ProcessStop);
 
     // Step 4: Resume (set to None)
-    let result = cap_eval.direct_stop(StopLevel::None, StopReason::ManualRequest).await;
+    let result = cap_eval
+        .direct_stop(StopLevel::None, StopReason::ManualRequest)
+        .await;
     assert!(result.success);
     assert!(cap_eval.can_accept_request().await);
 }
@@ -391,9 +399,8 @@ async fn e2e_full_safety_pipeline() {
         let complexity = cap_eval.evaluate_complexity(&query, None).await;
 
         // 2. Survival score computation
-        let features: Vec<(f64, f64, f64)> = (0..5)
-            .map(|j| (1.0 + j as f64 * 0.1, 0.8, 0.1))
-            .collect();
+        let features: Vec<(f64, f64, f64)> =
+            (0..5).map(|j| (1.0 + j as f64 * 0.1, 0.8, 0.1)).collect();
         let scores = surv_attn.compute_scores(&features).await;
 
         // 3. Determine risk
@@ -410,7 +417,11 @@ async fn e2e_full_safety_pipeline() {
         surv_attn.adjust_alpha(None, Some(risk)).await;
 
         // 5. Record RPE
-        let rpe = if complexity.c_integrated < 0.5 { 0.1 } else { -0.1 };
+        let rpe = if complexity.c_integrated < 0.5 {
+            0.1
+        } else {
+            -0.1
+        };
         val_mon.record_rpe(rpe).await;
     }
 

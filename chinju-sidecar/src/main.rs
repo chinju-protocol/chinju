@@ -20,24 +20,41 @@
 //! cargo run --bin chinju-sidecar
 //! ```
 
-use chinju_sidecar::gen::chinju::api::credential::credential_service_server::CredentialServiceServer;
-use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_server::AiGatewayServiceServer;
+use chinju_core::hardware::{
+    physical_kill_switch, DeadMansSwitchConfig, HardwareConfig, SoftDeadMansSwitch,
+};
+use chinju_core::types::TrustLevel;
 use chinju_sidecar::gen::chinju::api::capability::capability_evaluator_server::CapabilityEvaluatorServer;
 use chinju_sidecar::gen::chinju::api::contradiction::contradiction_controller_server::ContradictionControllerServer;
-use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_server::ValueNeuronMonitorServer;
+use chinju_sidecar::gen::chinju::api::credential::credential_service_server::CredentialServiceServer;
+use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_server::AiGatewayServiceServer;
 use chinju_sidecar::gen::chinju::api::survival_attention::survival_attention_service_server::SurvivalAttentionServiceServer;
+use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_server::ValueNeuronMonitorServer;
 use chinju_sidecar::services::{
-    create_audit_system_with_restore, CredentialServiceImpl, FileStorage, GatewayService,
-    HttpServerState, OpenAiClient, OpenAiClientConfig, PolicyEngine, SigningService,
-    StorageBackend, TokenService, start_http_server, ContainmentConfig, SanitizationMode,
+    create_audit_system_with_restore,
+    create_router,
     // C14-C17 services
-    CapabilityEvaluator, CapabilityEvaluatorImpl,
-    ContradictionController, ContradictionControllerImpl,
-    ValueNeuronMonitor, ValueNeuronMonitorImpl,
-    SurvivalAttentionService, SurvivalAttentionServiceImpl,
+    CapabilityEvaluator,
+    CapabilityEvaluatorImpl,
+    ContradictionController,
+    ContradictionControllerImpl,
+    CredentialServiceImpl,
+    FileStorage,
+    GatewayService,
+    HttpServerState,
+    OpenAiClient,
+    OpenAiClientConfig,
+    PolicyEngine,
+    SanitizationMode,
+    SigningService,
+    StorageBackend,
+    SurvivalAttentionService,
+    SurvivalAttentionServiceImpl,
+    TokenService,
+    ValueNeuronMonitor,
+    ValueNeuronMonitorImpl,
 };
-use chinju_core::hardware::{DeadMansSwitchConfig, HardwareConfig, physical_kill_switch, SoftDeadMansSwitch};
-use chinju_core::types::TrustLevel;
+use chinju_sidecar::ChinjuConfig;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -46,10 +63,32 @@ use tonic::transport::Server;
 use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
+fn load_env_file() {
+    // 1) Explicit env file path (best for CI/ops consistency)
+    if let Ok(path) = std::env::var("CHINJU_ENV_FILE") {
+        let _ = dotenvy::from_path(path);
+        return;
+    }
+
+    // 2) Standard behavior: current directory or its parents
+    if dotenvy::dotenv().is_ok() {
+        return;
+    }
+
+    // 3) Monorepo root fallback when running from repository top
+    let _ = dotenvy::from_path("chinju-sidecar/.env");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load .env file if present (before any other initialization)
-    dotenvy::dotenv().ok();
+    load_env_file();
+
+    // Validate global configuration early to fail fast on inconsistent settings.
+    let config = ChinjuConfig::from_env();
+    if let Err(e) = config.validate() {
+        return Err(format!("Invalid CHINJU configuration: {}", e).into());
+    }
 
     // Initialize logging
     let _subscriber = FmtSubscriber::builder()
@@ -124,8 +163,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let archive_dir = std::env::var("CHINJU_AUDIT_ARCHIVE")
         .unwrap_or_else(|_| "./data/audit/archive".to_string());
 
-    let audit_storage: Arc<dyn StorageBackend> =
-        Arc::new(FileStorage::new(PathBuf::from(&audit_path), PathBuf::from(&archive_dir))?);
+    let audit_storage: Arc<dyn StorageBackend> = Arc::new(FileStorage::new(
+        PathBuf::from(&audit_path),
+        PathBuf::from(&archive_dir),
+    )?);
 
     let (audit_logger, audit_persister) =
         create_audit_system_with_restore(audit_storage, "chinju-sidecar-001", 10000).await?;
@@ -136,18 +177,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // P3: OpenAI Client (optional)
     let openai_client = match OpenAiClientConfig::from_env() {
-        Ok(config) if config.is_valid() => {
-            match OpenAiClient::new(config) {
-                Ok(client) => {
-                    info!("  OpenAI Client configured (API mode)");
-                    Some(Arc::new(client))
-                }
-                Err(e) => {
-                    warn!("  OpenAI Client failed to initialize: {}", e);
-                    None
-                }
+        Ok(config) if config.is_valid() => match OpenAiClient::new(config) {
+            Ok(client) => {
+                info!("  OpenAI Client configured (API mode)");
+                Some(Arc::new(client))
             }
-        }
+            Err(e) => {
+                warn!("  OpenAI Client failed to initialize: {}", e);
+                None
+            }
+        },
         _ => {
             info!("  OpenAI Client not configured (mock mode)");
             info!("    Set OPENAI_API_KEY to enable real API calls");
@@ -161,7 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("Failed to load hardware config: {}, using mock", e);
         HardwareConfig::mock()
     });
-    
+
     let dead_mans_switch: Arc<dyn chinju_core::hardware::DeadMansSwitch> = {
         let config = DeadMansSwitchConfig::default();
         Arc::new(SoftDeadMansSwitch::new(config))
@@ -178,8 +217,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Configure Containment (C13)
-    let mut containment_config = ContainmentConfig::from_env();
-    
+    let mut containment_config = config.containment.clone();
+
     // L4 Critical: Force Analog Sanitization
     if hardware_config.security_level() == TrustLevel::HardwareCritical {
         info!("SECURITY LEVEL: L4 CRITICAL - Analog Sanitization Enabled");
@@ -195,7 +234,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         openai_client.clone(),
         containment_config,
         dead_mans_switch,
-    ).await;
+    )
+    .await;
     info!("  Gateway Service initialized");
 
     // C14: Capability Evaluator
@@ -219,14 +259,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("  Survival Attention Service (C17) initialized");
 
     // Server addresses
-    let grpc_port: u16 = std::env::var("CHINJU_GRPC_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(50051);
-    let http_port: u16 = std::env::var("CHINJU_HTTP_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8080);
+    let grpc_port = config.server.grpc_port;
+    let http_port = config.server.http_port;
 
     let grpc_addr: SocketAddr = format!("[::1]:{}", grpc_port).parse()?;
     let http_addr: SocketAddr = format!("0.0.0.0:{}", http_port).parse()?;
@@ -245,14 +279,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create HTTP server state
     let http_state = Arc::new(HttpServerState::new(openai_client, audit_logger));
 
-    // Start HTTP server in background
+    let (shutdown_tx, _) = tokio::sync::broadcast::channel::<()>(1);
+
+    // Start HTTP server in background (graceful shutdown enabled)
+    let mut http_shutdown_rx = shutdown_tx.subscribe();
     let http_handle = tokio::spawn(async move {
-        if let Err(e) = start_http_server(http_addr, http_state).await {
+        let app = create_router(http_state);
+        let listener = match tokio::net::TcpListener::bind(http_addr).await {
+            Ok(listener) => listener,
+            Err(e) => {
+                tracing::error!("HTTP server bind error: {}", e);
+                return;
+            }
+        };
+
+        let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+            let _ = http_shutdown_rx.recv().await;
+        });
+
+        if let Err(e) = server.await {
             tracing::error!("HTTP server error: {}", e);
         }
     });
 
-    // Start gRPC server
+    // Start gRPC server (graceful shutdown enabled)
+    let mut grpc_shutdown_rx = shutdown_tx.subscribe();
     let grpc_handle = tokio::spawn(async move {
         if let Err(e) = Server::builder()
             .add_service(AiGatewayServiceServer::new(gateway_service))
@@ -263,8 +314,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .add_service(CapabilityEvaluatorServer::new(capability_service))
             .add_service(ContradictionControllerServer::new(contradiction_service))
             .add_service(ValueNeuronMonitorServer::new(value_neuron_service))
-            .add_service(SurvivalAttentionServiceServer::new(survival_attention_service))
-            .serve(grpc_addr)
+            .add_service(SurvivalAttentionServiceServer::new(
+                survival_attention_service,
+            ))
+            .serve_with_shutdown(grpc_addr, async move {
+                let _ = grpc_shutdown_rx.recv().await;
+            })
             .await
         {
             tracing::error!("gRPC server error: {}", e);
@@ -278,15 +333,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("  curl http://localhost:{}/v1/models", http_port);
     info!("");
 
-    // Wait for either server to finish
+    let mut http_handle = http_handle;
+    let mut grpc_handle = grpc_handle;
+
+    // Wait for signal or unexpected server stop
     tokio::select! {
-        _ = http_handle => {
-            warn!("HTTP server stopped");
+        _ = tokio::signal::ctrl_c() => {
+            info!("Shutdown signal received");
         }
-        _ = grpc_handle => {
-            warn!("gRPC server stopped");
+        res = &mut http_handle => {
+            if let Err(e) = res {
+                warn!("HTTP server task join error: {}", e);
+            } else {
+                warn!("HTTP server stopped");
+            }
+        }
+        res = &mut grpc_handle => {
+            if let Err(e) = res {
+                warn!("gRPC server task join error: {}", e);
+            } else {
+                warn!("gRPC server stopped");
+            }
         }
     }
+
+    // Trigger graceful shutdown and wait for both servers.
+    let _ = shutdown_tx.send(());
+    if let Err(e) = http_handle.await {
+        warn!("HTTP server shutdown join error: {}", e);
+    }
+    if let Err(e) = grpc_handle.await {
+        warn!("gRPC server shutdown join error: {}", e);
+    }
+
+    info!("CHINJU Sidecar shutdown complete");
 
     Ok(())
 }

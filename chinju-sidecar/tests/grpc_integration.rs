@@ -7,10 +7,9 @@
 //! - C17 SurvivalAttentionService
 
 use chinju_sidecar::services::{
-    CapabilityEvaluator, CapabilityEvaluatorImpl,
+    CapabilityEvaluator, CapabilityEvaluatorImpl, ContradictionController,
+    ContradictionControllerImpl, SurvivalAttentionService, SurvivalAttentionServiceImpl,
     ValueNeuronMonitor, ValueNeuronMonitorImpl,
-    ContradictionController, ContradictionControllerImpl,
-    SurvivalAttentionService, SurvivalAttentionServiceImpl,
 };
 
 // =============================================================================
@@ -44,7 +43,9 @@ async fn test_capability_evaluator_drift() {
 
     // Need some history for drift detection
     for i in 0..10 {
-        evaluator.evaluate_complexity(&format!("Query {}", i), None).await;
+        evaluator
+            .evaluate_complexity(&format!("Query {}", i), None)
+            .await;
     }
 
     let drift = evaluator.detect_drift().await;
@@ -154,7 +155,9 @@ async fn test_survival_attention_alpha() {
 
     // Adjust alpha for medical task with high risk
     use chinju_sidecar::services::survival_attention::RiskLevel;
-    let (prev, new) = service.adjust_alpha(Some("medical"), Some(RiskLevel::High)).await;
+    let (prev, new) = service
+        .adjust_alpha(Some("medical"), Some(RiskLevel::High))
+        .await;
 
     // With high risk and medical task, alpha should increase
     assert!(new > prev);

@@ -30,9 +30,8 @@ mod output_sanitizer {
 
     // Strategy for text with code blocks
     fn text_with_code() -> impl Strategy<Value = String> {
-        (arbitrary_text(), arbitrary_text()).prop_map(|(text, code)| {
-            format!("{}\n```rust\n{}\n```\n", text, code)
-        })
+        (arbitrary_text(), arbitrary_text())
+            .prop_map(|(text, code)| format!("{}\n```rust\n{}\n```\n", text, code))
     }
 
     proptest! {
@@ -255,8 +254,8 @@ mod zkp_verifier {
 mod concurrent_access {
     use super::*;
     use std::sync::Arc;
-    use tokio::sync::RwLock;
     use std::time::Duration;
+    use tokio::sync::RwLock;
 
     proptest! {
         /// Property: RwLock operations should be safe under concurrent access

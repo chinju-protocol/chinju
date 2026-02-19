@@ -21,12 +21,13 @@ impl AnalogSanitizer {
 
         let id = Uuid::new_v4();
         let img_path = format!("/tmp/chinju_sanitize_{}.png", id);
-        
+
         debug!(id = %id, text_len = text.len(), "Starting analog sanitization");
 
         // 1. Render text to image
         let img = Self::text_to_image(text)?;
-        img.save(&img_path).map_err(|e| format!("Failed to save image: {}", e))?;
+        img.save(&img_path)
+            .map_err(|e| format!("Failed to save image: {}", e))?;
 
         // 2. Run OCR (Tesseract)
         // Using stdout to avoid another temp file
@@ -51,7 +52,7 @@ impl AnalogSanitizer {
         }
 
         let result = String::from_utf8_lossy(&output.stdout).to_string();
-        
+
         info!(
             original_len = text.len(),
             sanitized_len = result.len(),
@@ -80,21 +81,24 @@ impl AnalogSanitizer {
 
         // Load font (using a bundled font or system font)
         // For this implementation, we'll look for common system fonts
-        let font_path = if std::path::Path::new("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").exists() {
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        } else if std::path::Path::new("/System/Library/Fonts/Helvetica.ttc").exists() {
-            "/System/Library/Fonts/Helvetica.ttc" // macOS
-        } else {
-            // Fallback or error - in production, bundle the font
-            return Err("No suitable font found for rendering".to_string());
+        let font_path =
+            if std::path::Path::new("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").exists() {
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+            } else if std::path::Path::new("/System/Library/Fonts/Helvetica.ttc").exists() {
+                "/System/Library/Fonts/Helvetica.ttc" // macOS
+            } else {
+                // Fallback or error - in production, bundle the font
+                return Err("No suitable font found for rendering".to_string());
+            };
+
+        let font_data =
+            std::fs::read(font_path).map_err(|e| format!("Failed to read font: {}", e))?;
+        let font = Font::try_from_vec(font_data).ok_or("Error constructing font")?;
+
+        let scale = Scale {
+            x: font_size,
+            y: font_size,
         };
-
-        let font_data = std::fs::read(font_path)
-            .map_err(|e| format!("Failed to read font: {}", e))?;
-        let font = Font::try_from_vec(font_data)
-            .ok_or("Error constructing font")?;
-
-        let scale = Scale { x: font_size, y: font_size };
         let color = Rgb([0, 0, 0]);
 
         // Draw text
@@ -106,7 +110,7 @@ impl AnalogSanitizer {
                 20 + (i as i32 * line_height as i32),
                 scale,
                 &font,
-                line
+                line,
             );
         }
 
@@ -114,7 +118,8 @@ impl AnalogSanitizer {
         // (Simple implementation: random pixel flipping)
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        for _ in 0..(width * height / 100) { // 1% noise
+        for _ in 0..(width * height / 100) {
+            // 1% noise
             let x = rng.gen_range(0..width);
             let y = rng.gen_range(0..height);
             // Flip pixel slightly

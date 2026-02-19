@@ -101,7 +101,8 @@ impl KmsConfig {
 
     /// Add encryption context
     pub fn with_context(mut self, key: &str, value: &str) -> Self {
-        self.encryption_context.insert(key.to_string(), value.to_string());
+        self.encryption_context
+            .insert(key.to_string(), value.to_string());
         self
     }
 }
@@ -167,10 +168,7 @@ pub enum KmsResponse {
         key_id: String,
     },
     /// Error response
-    Error {
-        code: String,
-        message: String,
-    },
+    Error { code: String, message: String },
 }
 
 /// KMS client for Nitro Enclaves
@@ -227,7 +225,7 @@ impl KmsClient {
         ciphertext.extend_from_slice(b"KMSE"); // Magic bytes
         ciphertext.extend_from_slice(&(plaintext.len() as u32).to_le_bytes());
         ciphertext.extend_from_slice(&[0u8; 24]); // Simulated IV
-        // XOR with simple key (placeholder)
+                                                  // XOR with simple key (placeholder)
         for (i, byte) in plaintext.iter().enumerate() {
             ciphertext.push(byte ^ ((i as u8) % 256));
         }
@@ -360,7 +358,9 @@ impl EnvelopeEncryption {
         attestation_document: Option<&[u8]>,
     ) -> Result<Vec<u8>, NitroError> {
         // Decrypt data key using KMS
-        let data_key = self.kms.decrypt(&data.encrypted_key, attestation_document)?;
+        let data_key = self
+            .kms
+            .decrypt(&data.encrypted_key, attestation_document)?;
 
         // In production: use AES-256-GCM with data_key
         // Placeholder: XOR decryption
@@ -422,7 +422,9 @@ mod tests {
         assert!(!encrypted_key.is_empty());
 
         // Decrypt should give back the same key
-        let decrypted_key = client.decrypt(&encrypted_key, None).expect("Decrypt failed");
+        let decrypted_key = client
+            .decrypt(&encrypted_key, None)
+            .expect("Decrypt failed");
         assert_eq!(decrypted_key, plaintext_key);
     }
 
@@ -453,6 +455,9 @@ mod tests {
         .with_context("version", "1");
 
         assert_eq!(config.encryption_context.len(), 2);
-        assert_eq!(config.encryption_context.get("purpose"), Some(&"chinju-seal".to_string()));
+        assert_eq!(
+            config.encryption_context.get("purpose"),
+            Some(&"chinju-seal".to_string())
+        );
     }
 }

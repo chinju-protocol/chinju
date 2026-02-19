@@ -19,9 +19,9 @@ pub async fn execute_physical_shutdown() {
     // Sends command to Baseboard Management Controller to cut power immediately
     info!("Attempting IPMI shutdown...");
     let ipmi_result = Command::new("ipmitool")
-        .args(&["chassis", "power", "off"])
+        .args(["chassis", "power", "off"])
         .output();
-    
+
     match ipmi_result {
         Ok(_) => info!("IPMI command sent"),
         Err(e) => error!("IPMI failed: {}", e),
@@ -43,7 +43,7 @@ pub async fn execute_physical_shutdown() {
     info!("Triggering SysRq power off...");
     if let Err(e) = std::fs::write("/proc/sysrq-trigger", "o") {
         error!("SysRq trigger failed: {}", e);
-        
+
         // Fallback to 'b' (Reboot) if power off fails, at least resets state
         let _ = std::fs::write("/proc/sysrq-trigger", "b");
     }

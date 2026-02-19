@@ -1,18 +1,13 @@
 //! AI Gateway Service Implementation
 //!
-//! The main entry point for AI requests. Handles:
-//! - Request validation
-//! - Credential verification
-//! - Policy evaluation
-//! - Token consumption
-//! - Request forwarding (OpenAI API or mock)
-//! - Response processing
-//! - Audit logging (C6)
-//! - LPT monitoring (C11)
-//! - Threshold signature verification for critical operations (Phase 4.4)
-//! - Model containment (C13): extraction deterrent, output sanitization, side-channel blocking
-//! - Dead Man's Switch monitoring (C13): heartbeat, environmental anomaly detection
+//! The main gRPC service implementation for the AI Gateway.
+//! See the parent module documentation for architecture overview.
 
+// Note: ContainmentChecker and request_processor components are available
+// for future refactoring. Currently using inline implementation for compatibility.
+use crate::config::ContainmentConfig;
+use crate::constants::{self, env, mock, policy, rate_limit, token};
+use crate::error::{ChinjuError, GatewayError};
 use crate::gen::chinju::api::credential::VerifyOptions;
 use crate::gen::chinju::api::gateway::ai_gateway_service_server::AiGatewayService;
 use crate::gen::chinju::api::gateway::*;
@@ -21,21 +16,19 @@ use crate::gen::chinju::policy::DecisionType;
 use crate::gen::chinju::token::{
     AiOperatingState, BalanceState, DecayParameters, OperatingLimits, TokenBalance,
 };
+use crate::ids::{CredentialId, RequestId, UserId};
 use crate::services::audit::{compute_content_hash, AuditLogger};
+use crate::services::contradiction_controller::ContradictionController;
+use crate::services::extraction_deterrent::{compute_query_hash, ExtractionDeterrent};
 use crate::services::lpt_monitor::{LptMonitor, LptState, ResponseRecord};
+use crate::services::nitro::{NitroService, NitroServiceConfig};
 use crate::services::openai_client::OpenAiClient;
 use crate::services::openai_types::{ChatCompletionRequest, ChatMessage};
+use crate::services::sanitizer::OutputSanitizer;
+use crate::services::side_channel::SideChannelBlocker;
 use crate::services::signature::ThresholdVerifier;
-use crate::services::extraction_deterrent::{
-    compute_query_hash, ExtractionDeterrent, ExtractionDeterrentConfig,
-};
-use crate::services::sanitizer::{OutputSanitizer, SanitizationMode, SanitizerConfig};
-use crate::services::side_channel::{SideChannelBlocker, SideChannelConfig};
-use crate::services::contradiction_controller::{ContradictionController, ContradictionControllerConfig};
 use crate::services::{CredentialServiceImpl, PolicyEngine, RequestContext, TokenService};
-use chinju_core::hardware::{
-    DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch, SwitchState,
-};
+use chinju_core::hardware::{DeadMansSwitch, SoftDeadMansSwitch, SwitchState};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -43,137 +36,6 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-
-/// C13 Model Containment configuration
-#[derive(Debug, Clone)]
-pub struct ContainmentConfig {
-    /// Enable extraction deterrent (rate limiting, watermarking)
-    pub enable_extraction_deterrent: bool,
-    /// Enable output sanitization
-    pub enable_output_sanitization: bool,
-    /// Enable side-channel blocking (timing normalization)
-    pub enable_side_channel_blocking: bool,
-    /// Enable Dead Man's Switch monitoring
-    pub enable_dead_mans_switch: bool,
-    /// Enable Nitro Enclave for secure key operations (L3)
-    pub enable_nitro_enclave: bool,
-    /// Enable C16 structural contradiction injection (7.6)
-    pub enable_contradiction: bool,
-    /// Sanitization mode
-    pub sanitization_mode: SanitizationMode,
-    /// Extraction deterrent config
-    pub extraction_config: ExtractionDeterrentConfig,
-    /// Sanitizer config
-    pub sanitizer_config: SanitizerConfig,
-    /// Side channel config
-    pub side_channel_config: SideChannelConfig,
-    /// Dead Man's Switch config
-    pub dead_mans_switch_config: DeadMansSwitchConfig,
-    /// Nitro Enclave CID (required if enable_nitro_enclave is true)
-    pub nitro_enclave_cid: Option<u32>,
-    /// Nitro Enclave vsock port
-    pub nitro_enclave_port: u32,
-    /// C16 contradiction controller config
-    pub contradiction_config: ContradictionControllerConfig,
-}
-
-impl Default for ContainmentConfig {
-    fn default() -> Self {
-        Self {
-            enable_extraction_deterrent: true,
-            enable_output_sanitization: true,
-            enable_side_channel_blocking: true,
-            enable_dead_mans_switch: true,
-            enable_nitro_enclave: false, // Disabled by default (requires EC2 Nitro)
-            enable_contradiction: false, // Disabled by default (C16 requires explicit activation)
-            sanitization_mode: SanitizationMode::Standard,
-            extraction_config: ExtractionDeterrentConfig::default(),
-            sanitizer_config: SanitizerConfig::default(),
-            side_channel_config: SideChannelConfig::default(),
-            dead_mans_switch_config: DeadMansSwitchConfig::default(),
-            nitro_enclave_cid: None,
-            nitro_enclave_port: 5000,
-            contradiction_config: ContradictionControllerConfig::default(),
-        }
-    }
-}
-
-impl ContainmentConfig {
-    /// Create config with all C13/C16 features disabled (for testing)
-    pub fn disabled() -> Self {
-        Self {
-            enable_extraction_deterrent: false,
-            enable_output_sanitization: false,
-            enable_side_channel_blocking: false,
-            enable_dead_mans_switch: false,
-            enable_nitro_enclave: false,
-            enable_contradiction: false,
-            ..Default::default()
-        }
-    }
-
-    /// Create config for production (all features enabled, Nitro optional)
-    pub fn production() -> Self {
-        Self::default()
-    }
-
-    /// Create config for production with Nitro Enclave (L3 security)
-    pub fn production_with_nitro(enclave_cid: u32) -> Self {
-        Self {
-            enable_nitro_enclave: true,
-            nitro_enclave_cid: Some(enclave_cid),
-            ..Self::default()
-        }
-    }
-
-    /// Load config from environment variables
-    pub fn from_env() -> Self {
-        let enable_extraction_deterrent = std::env::var("CHINJU_C13_EXTRACTION_DETERRENT")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(true);
-
-        let enable_output_sanitization = std::env::var("CHINJU_C13_OUTPUT_SANITIZATION")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(true);
-
-        let enable_side_channel_blocking = std::env::var("CHINJU_C13_SIDE_CHANNEL_BLOCKING")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(true);
-
-        let enable_dead_mans_switch = std::env::var("CHINJU_C13_DEAD_MANS_SWITCH")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(true);
-
-        let enable_nitro_enclave = std::env::var("CHINJU_NITRO_ENABLED")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false);
-
-        let enable_contradiction = std::env::var("CHINJU_C16_CONTRADICTION")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false);
-
-        let nitro_enclave_cid: Option<u32> = std::env::var("CHINJU_NITRO_ENCLAVE_CID")
-            .ok()
-            .and_then(|s| s.parse().ok());
-
-        let nitro_enclave_port: u32 = std::env::var("CHINJU_NITRO_PORT")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(5000);
-
-        Self {
-            enable_extraction_deterrent,
-            enable_output_sanitization,
-            enable_side_channel_blocking,
-            enable_dead_mans_switch,
-            enable_nitro_enclave,
-            enable_contradiction,
-            nitro_enclave_cid,
-            nitro_enclave_port,
-            ..Default::default()
-        }
-    }
-}
 
 /// AI Gateway Service
 pub struct GatewayService {
@@ -208,7 +70,7 @@ pub struct GatewayService {
     /// C13: Dead Man's Switch (physical safety mechanism)
     dead_mans_switch: Arc<dyn DeadMansSwitch>,
     /// C13: Nitro Enclave Service (L3 secure execution)
-    nitro_service: Option<Arc<RwLock<super::NitroService>>>,
+    nitro_service: Option<Arc<RwLock<NitroService>>>,
     /// C16: Contradiction Controller for structural contradiction injection
     contradiction_controller: Option<Arc<ContradictionController>>,
 }
@@ -228,7 +90,8 @@ impl GatewayService {
             None,
             ContainmentConfig::disabled(),
             Arc::new(SoftDeadMansSwitch::default()),
-        ).await
+        )
+        .await
     }
 
     /// Create with audit logger (C13 disabled)
@@ -246,7 +109,8 @@ impl GatewayService {
             None,
             ContainmentConfig::disabled(),
             Arc::new(SoftDeadMansSwitch::default()),
-        ).await
+        )
+        .await
     }
 
     /// Create with audit logger and OpenAI client (C13 enabled by default)
@@ -265,7 +129,8 @@ impl GatewayService {
             Some(openai_client),
             ContainmentConfig::production(),
             Arc::new(SoftDeadMansSwitch::default()),
-        ).await
+        )
+        .await
     }
 
     /// Create with full configuration including C13 containment
@@ -295,18 +160,19 @@ impl GatewayService {
 
         info!(
             "Initializing CHINJU AI Gateway Service ({} mode, {}, DMS={})",
-            mode,
-            c13_status,
-            containment_config.enable_dead_mans_switch
+            mode, c13_status, containment_config.enable_dead_mans_switch
         );
 
         // Initialize C13 components
-        let extraction_deterrent =
-            Arc::new(ExtractionDeterrent::with_config(containment_config.extraction_config.clone()));
-        let output_sanitizer =
-            Arc::new(OutputSanitizer::with_config(containment_config.sanitizer_config.clone()));
-        let side_channel_blocker =
-            Arc::new(SideChannelBlocker::with_config(containment_config.side_channel_config.clone()));
+        let extraction_deterrent = Arc::new(ExtractionDeterrent::with_config(
+            containment_config.extraction_config.clone(),
+        ));
+        let output_sanitizer = Arc::new(OutputSanitizer::with_config(
+            containment_config.sanitizer_config.clone(),
+        ));
+        let side_channel_blocker = Arc::new(SideChannelBlocker::with_config(
+            containment_config.side_channel_config.clone(),
+        ));
 
         // Arm and start monitoring if enabled
         if containment_config.enable_dead_mans_switch {
@@ -338,16 +204,14 @@ impl GatewayService {
 
         // Initialize Nitro Enclave Service if enabled
         let nitro_service = if containment_config.enable_nitro_enclave {
-            use super::nitro::{NitroService, NitroServiceConfig};
-
             let nitro_config = NitroServiceConfig {
                 enabled: true,
                 cid: containment_config.nitro_enclave_cid,
                 port: containment_config.nitro_enclave_port,
-                debug: std::env::var("CHINJU_NITRO_DEBUG")
+                debug: std::env::var(env::NITRO_DEBUG)
                     .map(|v| v == "true" || v == "1")
                     .unwrap_or(false),
-                timeout_ms: 5000,
+                timeout_ms: constants::nitro::TIMEOUT_MS,
             };
 
             let mut service = NitroService::new(nitro_config);
@@ -355,10 +219,16 @@ impl GatewayService {
             // Try to connect to Enclave
             match service.connect().await {
                 Ok(()) => {
-                    info!("Connected to Nitro Enclave (CID={:?})", containment_config.nitro_enclave_cid);
+                    info!(
+                        "Connected to Nitro Enclave (CID={:?})",
+                        containment_config.nitro_enclave_cid
+                    );
                 }
                 Err(e) => {
-                    warn!("Failed to connect to Nitro Enclave: {}. Continuing without Enclave.", e);
+                    warn!(
+                        "Failed to connect to Nitro Enclave: {}. Continuing without Enclave.",
+                        e
+                    );
                 }
             }
 
@@ -372,7 +242,7 @@ impl GatewayService {
         let contradiction_controller = if containment_config.enable_contradiction {
             info!("Initializing C16 Contradiction Controller");
             Some(Arc::new(ContradictionController::with_config(
-                containment_config.contradiction_config.clone()
+                containment_config.contradiction_config.clone(),
             )))
         } else {
             info!("C16 Contradiction injection disabled");
@@ -441,7 +311,7 @@ impl GatewayService {
     }
 
     /// Get Nitro Service for external access (C13 L3)
-    pub fn nitro_service(&self) -> Option<Arc<RwLock<super::NitroService>>> {
+    pub fn nitro_service(&self) -> Option<Arc<RwLock<NitroService>>> {
         self.nitro_service.clone()
     }
 
@@ -472,7 +342,11 @@ impl GatewayService {
     /// Sign data using Nitro Enclave (if available)
     ///
     /// Falls back to local signing if Enclave is not available.
-    pub async fn secure_sign(&self, key_id: &str, data: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
+    pub async fn secure_sign(
+        &self,
+        key_id: &str,
+        data: &[u8],
+    ) -> Result<(Vec<u8>, Vec<u8>), String> {
         if let Some(ref service) = self.nitro_service {
             let svc = service.read().await;
             if svc.is_healthy().await {
@@ -480,7 +354,7 @@ impl GatewayService {
             }
             warn!("Nitro Enclave not healthy, falling back to local signing");
         }
-        
+
         // Fallback: return error (in production, could use software signing)
         Err("Nitro Enclave not available for signing".to_string())
     }
@@ -494,7 +368,7 @@ impl GatewayService {
             }
             warn!("Nitro Enclave not healthy, cannot seal data");
         }
-        
+
         Err("Nitro Enclave not available for sealing".to_string())
     }
 
@@ -507,19 +381,23 @@ impl GatewayService {
             }
             warn!("Nitro Enclave not healthy, cannot unseal data");
         }
-        
+
         Err("Nitro Enclave not available for unsealing".to_string())
     }
 
     /// Get attestation document from Nitro Enclave
-    pub async fn get_attestation(&self, challenge: &[u8], user_data: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+    pub async fn get_attestation(
+        &self,
+        challenge: &[u8],
+        user_data: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>, String> {
         if let Some(ref service) = self.nitro_service {
             let svc = service.read().await;
             if svc.is_healthy().await {
                 return svc.get_attestation(challenge, user_data).await;
             }
         }
-        
+
         Err("Nitro Enclave not available for attestation".to_string())
     }
 
@@ -546,6 +424,45 @@ impl GatewayService {
         })
     }
 
+    /// Estimate prompt token count from payload text (coarse heuristic).
+    fn estimate_prompt_tokens(payload: &AiRequestPayload) -> u64 {
+        let mut chars = payload.model.len()
+            + payload
+                .messages
+                .iter()
+                .map(|m| m.role.len() + m.name.len() + m.content.len())
+                .sum::<usize>();
+
+        // Keep non-zero estimate and avoid overflows in tiny payloads.
+        if chars == 0 {
+            chars = 1;
+        }
+
+        // Common heuristic: ~4 chars per token.
+        (chars as u64).div_ceil(4)
+    }
+
+    /// Reserve tokens before external AI call to avoid unpaid inference.
+    fn estimate_preflight_token_cost(payload: &AiRequestPayload) -> u64 {
+        const DEFAULT_MAX_COMPLETION_TOKENS: u64 = 512;
+
+        let prompt_tokens = Self::estimate_prompt_tokens(payload);
+        let completion_tokens = payload
+            .parameters
+            .as_ref()
+            .and_then(|p| {
+                if p.max_tokens > 0 {
+                    Some(p.max_tokens as u64)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(DEFAULT_MAX_COMPLETION_TOKENS)
+            .min(rate_limit::MAX_TOKENS_PER_REQUEST);
+
+        prompt_tokens.saturating_add(completion_tokens)
+    }
+
     /// Mock AI response generation
     async fn mock_ai_response(&self, payload: &AiRequestPayload) -> (String, u32, u32) {
         let model = &payload.model;
@@ -565,17 +482,18 @@ impl GatewayService {
         );
 
         // Return content, prompt_tokens, completion_tokens
-        (content, 50, 100)
+        (content, mock::PROMPT_TOKENS, mock::COMPLETION_TOKENS)
     }
 
     /// Real AI response via OpenAI API
     async fn real_ai_response(
         &self,
         payload: &AiRequestPayload,
-    ) -> Result<(String, u32, u32), Status> {
-        let client = self.openai_client.as_ref().ok_or_else(|| {
-            Status::unavailable("OpenAI client not configured")
-        })?;
+    ) -> Result<(String, u32, u32), ChinjuError> {
+        let client = self
+            .openai_client
+            .as_ref()
+            .ok_or_else(|| ChinjuError::from(GatewayError::ServiceUnavailable))?;
 
         // Convert CHINJU payload to OpenAI request
         let openai_request = ChatCompletionRequest {
@@ -643,11 +561,11 @@ impl GatewayService {
             Err(e) => {
                 warn!(error = %e, "OpenAI API call failed");
                 Err(match e.to_status_code() {
-                    401 => Status::unauthenticated(e.to_string()),
-                    403 => Status::permission_denied(e.to_string()),
-                    429 => Status::resource_exhausted(e.to_string()),
-                    500..=599 => Status::unavailable(e.to_string()),
-                    _ => Status::internal(e.to_string()),
+                    401 => GatewayError::UpstreamAuthenticationFailed.into(),
+                    403 => GatewayError::UpstreamForbidden.into(),
+                    429 => GatewayError::UpstreamRateLimited.into(),
+                    500..=599 => GatewayError::UpstreamUnavailable.into(),
+                    _ => GatewayError::UpstreamRequestFailed.into(),
                 })
             }
         }
@@ -656,8 +574,8 @@ impl GatewayService {
     /// Log to audit (if logger is configured)
     async fn log_ai_request_audit(
         &self,
-        request_id: &str,
-        credential_id: Option<&str>,
+        request_id: &RequestId,
+        credential_id: Option<&CredentialId>,
         capability_score: Option<f64>,
         payload: &AiRequestPayload,
     ) -> Option<String> {
@@ -693,7 +611,7 @@ impl GatewayService {
     /// Log response to audit (if logger is configured)
     async fn log_ai_response_audit(
         &self,
-        request_id: &str,
+        request_id: &RequestId,
         content: &str,
         policy_decision: &str,
         matched_rules: &[String],
@@ -724,17 +642,27 @@ impl AiGatewayService for GatewayService {
         request: Request<ProcessRequestRequest>,
     ) -> Result<Response<ProcessRequestResponse>, Status> {
         let req = request.into_inner();
-        let request_id = req.request_id.clone();
+        let request_id = RequestId::new(req.request_id.clone())
+            .map_err(|e| Status::from(ChinjuError::from(e)))?;
         let start_time = std::time::Instant::now();
 
         // C13: Start timing guard for side-channel protection
-        let timing_guard = if self.containment_config.enable_side_channel_blocking {
+        let mut timing_guard = if self.containment_config.enable_side_channel_blocking {
             Some(crate::services::side_channel::TimingGuard::new(
                 &self.side_channel_blocker,
             ))
         } else {
             None
         };
+
+        macro_rules! return_with_timing {
+            ($status:expr) => {{
+                if let Some(guard) = timing_guard.take() {
+                    guard.finish().await;
+                }
+                return Err($status);
+            }};
+        }
 
         info!(request_id = %request_id, "Processing AI request");
 
@@ -747,7 +675,7 @@ impl AiGatewayService for GatewayService {
                         request_id = %request_id,
                         "C13: Dead Man's Switch triggered - service unavailable"
                     );
-                    return Err(Status::unavailable(
+                    return_with_timing!(Status::unavailable(
                         "Service unavailable: safety mechanism triggered",
                     ));
                 }
@@ -770,10 +698,10 @@ impl AiGatewayService for GatewayService {
         match *state {
             AiOperatingState::Halted | AiOperatingState::Shutdown => {
                 warn!("Request rejected: AI system is halted");
-                return Err(Status::unavailable("AI system is currently halted"));
+                return_with_timing!(Status::unavailable("AI system is currently halted"));
             }
             AiOperatingState::Suspended => {
-                return Err(Status::unavailable("AI system is suspended"));
+                return_with_timing!(Status::unavailable("AI system is suspended"));
             }
             _ => {}
         }
@@ -786,8 +714,8 @@ impl AiGatewayService for GatewayService {
                 cred,
                 &VerifyOptions {
                     skip_revocation_check: false,
-                    min_capability_score: 0.3,
-                    min_chain_length: 0,
+                    min_capability_score: policy::MIN_CAPABILITY_SCORE,
+                    min_chain_length: constants::security::MIN_CHAIN_LENGTH as u64,
                     require_hardware_attestation: false,
                 },
             );
@@ -804,14 +732,27 @@ impl AiGatewayService for GatewayService {
             false
         };
 
+        let credential_id = match credential
+            .as_ref()
+            .and_then(|c| c.subject_id.as_ref())
+            .map(|id| id.id.as_str())
+        {
+            Some(raw_id) => Some(
+                CredentialId::new(raw_id.to_string())
+                    .map_err(|e| Status::from(ChinjuError::from(e)))?,
+            ),
+            None => None,
+        };
+
+        let user_id = credential_id
+            .as_ref()
+            .map(|id| UserId::new(id.as_str().to_string()))
+            .transpose()
+            .map_err(|e| Status::from(ChinjuError::from(e)))?
+            .unwrap_or_else(UserId::anonymous);
+
         // Step 2: C13 Extraction deterrent check (rate limiting, pattern detection)
         if self.containment_config.enable_extraction_deterrent {
-            let user_id = credential
-                .as_ref()
-                .and_then(|c| c.subject_id.as_ref())
-                .map(|id| id.id.as_str())
-                .unwrap_or("anonymous");
-
             // Compute query hash from payload for pattern detection
             let query_hash = req
                 .payload
@@ -826,9 +767,9 @@ impl AiGatewayService for GatewayService {
                 .unwrap_or(0);
 
             // Check rate limits and patterns
-            if let Err(e) = self
-                .extraction_deterrent
-                .check_query(user_id, None, query_hash)
+            if let Err(e) =
+                self.extraction_deterrent
+                    .check_query(user_id.as_str(), None, query_hash)
             {
                 warn!(
                     request_id = %request_id,
@@ -836,7 +777,9 @@ impl AiGatewayService for GatewayService {
                     error = %e,
                     "C13: Extraction deterrent blocked request"
                 );
-                return Err(Status::resource_exhausted(e.to_string()));
+                return_with_timing!(Status::resource_exhausted(
+                    "Request blocked by extraction deterrent",
+                ));
             }
             debug!(
                 request_id = %request_id,
@@ -866,7 +809,7 @@ impl AiGatewayService for GatewayService {
                     reason = %policy_decision.reason,
                     "Request denied by policy"
                 );
-                return Err(Status::permission_denied(policy_decision.reason.clone()));
+                return_with_timing!(Status::permission_denied(policy_decision.reason.clone()));
             }
             DecisionType::DecisionThrottle => {
                 info!(
@@ -880,21 +823,24 @@ impl AiGatewayService for GatewayService {
                     request_id = %request_id,
                     "Request requires escalation"
                 );
-                return Err(Status::failed_precondition(
-                    "Request requires human escalation",
-                ));
+                return_with_timing!(Status::from(ChinjuError::from(
+                    GatewayError::EscalationRequired,
+                )));
             }
             _ => {}
         }
 
         // Get payload early for audit logging
-        let payload = payload.ok_or_else(|| Status::invalid_argument("Missing payload"))?;
+        let payload = match payload {
+            Some(payload) => payload,
+            None => {
+                return_with_timing!(Status::from(ChinjuError::from(
+                    GatewayError::InvalidRequest("Missing payload".to_string()),
+                )))
+            }
+        };
 
         // Extract credential info for audit
-        let credential_id = credential
-            .as_ref()
-            .and_then(|c| c.subject_id.as_ref())
-            .map(|id| id.id.as_str());
         let capability_score = credential
             .as_ref()
             .and_then(|c| c.capability.as_ref())
@@ -902,24 +848,81 @@ impl AiGatewayService for GatewayService {
 
         // Audit: Log AI request (C6)
         let audit_log_id = self
-            .log_ai_request_audit(&request_id, credential_id, capability_score, &payload)
+            .log_ai_request_audit(
+                &request_id,
+                credential_id.as_ref(),
+                capability_score,
+                &payload,
+            )
             .await
             .unwrap_or_else(|| format!("audit_{}", Uuid::new_v4()));
 
+        // Step 4: Reserve tokens before external call (C5 preflight)
+        let reserved_token_cost = Self::estimate_preflight_token_cost(&payload);
+        let (reserve_success, reserve_remaining_balance) = {
+            let _lock_order = crate::lock_order::enter_lock_scope(
+                crate::lock_order::LOCK_ORDER_TOKEN_SERVICE,
+                "gateway.token_service",
+            );
+            let mut token_svc = self.token_service.write().await;
+            let success = token_svc.consume(reserved_token_cost);
+            let remaining = token_svc.get_balance();
+            (success, remaining)
+        };
+
+        if !reserve_success {
+            warn!(
+                request_id = %request_id,
+                reserved_token_cost = reserved_token_cost,
+                remaining = reserve_remaining_balance,
+                "Request rejected by token preflight"
+            );
+            self.log_ai_response_audit(
+                &request_id,
+                "Insufficient tokens (preflight)",
+                "deny",
+                &["token_exhausted_preflight".to_string()],
+                0,
+                start_time.elapsed().as_millis() as u64,
+                false,
+            )
+            .await;
+            return_with_timing!(Status::resource_exhausted(format!(
+                "Insufficient tokens: {} required (preflight), {} available",
+                reserved_token_cost, reserve_remaining_balance
+            )));
+        }
+
         // Step 4: Generate response (OpenAI or mock)
-        let (raw_content, prompt_tokens, completion_tokens) = if self.openai_client.is_some() {
+        let ai_result = if self.openai_client.is_some() {
             // Real OpenAI API call
-            self.real_ai_response(&payload).await?
+            self.real_ai_response(&payload).await
         } else {
             // Mock response
-            self.mock_ai_response(&payload).await
+            Ok(self.mock_ai_response(&payload).await)
+        };
+        let (raw_content, prompt_tokens, completion_tokens) = match ai_result {
+            Ok(result) => result,
+            Err(e) => {
+                // Refund reservation when upstream generation fails.
+                let _lock_order = crate::lock_order::enter_lock_scope(
+                    crate::lock_order::LOCK_ORDER_TOKEN_SERVICE,
+                    "gateway.token_service",
+                );
+                let mut token_svc = self.token_service.write().await;
+                token_svc.grant(reserved_token_cost);
+                return_with_timing!(Status::from(e));
+            }
         };
 
         // Step 5: C13 Output sanitization (steganography destruction)
         let sanitized_content = if self.containment_config.enable_output_sanitization {
             let sanitized = self
                 .output_sanitizer
-                .sanitize(&raw_content, Some(self.containment_config.sanitization_mode))
+                .sanitize(
+                    &raw_content,
+                    Some(self.containment_config.sanitization_mode),
+                )
                 .await;
             debug!(
                 request_id = %request_id,
@@ -934,10 +937,9 @@ impl AiGatewayService for GatewayService {
 
         // Step 6: C13 Watermark embedding (for extraction detection)
         let content = if self.containment_config.enable_extraction_deterrent {
-            let user_id = credential_id.unwrap_or("anonymous");
             let watermarked = self
                 .extraction_deterrent
-                .process_output(&sanitized_content, user_id);
+                .process_output(&sanitized_content, user_id.as_str());
             debug!(
                 request_id = %request_id,
                 user_id = %user_id,
@@ -950,37 +952,53 @@ impl AiGatewayService for GatewayService {
 
         let total_tokens = prompt_tokens + completion_tokens;
 
-        // Step 7: Consume tokens (C5) - based on actual usage
-        // 10.2.2: Release lock before async audit logging to prevent deadlock
+        // Step 7: Reconcile reserved tokens with actual usage (C5)
         let token_cost = total_tokens as u64;
-        let (consume_success, remaining_balance) = {
-            let mut token_svc = self.token_service.write().await;
-            let success = token_svc.consume(token_cost);
-            let remaining = token_svc.get_balance();
-            (success, remaining)
-        }; // Lock released here before any I/O operations
+        if token_cost > reserved_token_cost {
+            let additional_cost = token_cost - reserved_token_cost;
+            let (consume_success, remaining_balance) = {
+                let _lock_order = crate::lock_order::enter_lock_scope(
+                    crate::lock_order::LOCK_ORDER_TOKEN_SERVICE,
+                    "gateway.token_service",
+                );
+                let mut token_svc = self.token_service.write().await;
+                let success = token_svc.consume(additional_cost);
+                let remaining = token_svc.get_balance();
+                (success, remaining)
+            };
 
-        if !consume_success {
-            warn!(
-                token_cost = token_cost,
-                remaining = remaining_balance,
-                "Request rejected: Insufficient tokens"
+            if !consume_success {
+                warn!(
+                    request_id = %request_id,
+                    token_cost = token_cost,
+                    reserved_token_cost = reserved_token_cost,
+                    additional_cost = additional_cost,
+                    remaining = remaining_balance,
+                    "Request rejected: insufficient tokens after preflight reservation"
+                );
+                self.log_ai_response_audit(
+                    &request_id,
+                    "Insufficient tokens",
+                    "deny",
+                    &["token_exhausted".to_string()],
+                    0,
+                    start_time.elapsed().as_millis() as u64,
+                    false,
+                )
+                .await;
+                return_with_timing!(Status::resource_exhausted(format!(
+                    "Insufficient tokens: {} required, {} available",
+                    token_cost, remaining_balance
+                )));
+            }
+        } else if reserved_token_cost > token_cost {
+            let refund = reserved_token_cost - token_cost;
+            let _lock_order = crate::lock_order::enter_lock_scope(
+                crate::lock_order::LOCK_ORDER_TOKEN_SERVICE,
+                "gateway.token_service",
             );
-            // Audit: Log failure (now safe - no lock held)
-            self.log_ai_response_audit(
-                &request_id,
-                "Insufficient tokens",
-                "deny",
-                &["token_exhausted".to_string()],
-                0,
-                start_time.elapsed().as_millis() as u64,
-                false,
-            )
-            .await;
-            return Err(Status::resource_exhausted(format!(
-                "Insufficient tokens: {} required, {} available",
-                token_cost, remaining_balance
-            )));
+            let mut token_svc = self.token_service.write().await;
+            token_svc.grant(refund);
         }
 
         // Increment request counter
@@ -1023,7 +1041,7 @@ impl AiGatewayService for GatewayService {
         };
 
         let lpt_record = ResponseRecord {
-            request_id: request_id.clone(),
+            request_id: request_id.to_string(),
             model: payload.model.clone(),
             input_hash,
             content: content.clone(),
@@ -1093,7 +1111,7 @@ impl AiGatewayService for GatewayService {
         };
 
         // C13: Apply timing normalization before returning response
-        if let Some(guard) = timing_guard {
+        if let Some(guard) = timing_guard.take() {
             guard.finish().await;
             debug!(
                 request_id = %request_id,
@@ -1121,83 +1139,71 @@ impl AiGatewayService for GatewayService {
         Ok(Response::new(response))
     }
 
-    type ProcessRequestStreamStream = tokio_stream::wrappers::ReceiverStream<Result<ProcessRequestChunk, Status>>;
+    type ProcessRequestStreamStream =
+        tokio_stream::wrappers::ReceiverStream<Result<ProcessRequestChunk, Status>>;
 
     async fn process_request_stream(
         &self,
         request: Request<ProcessRequestRequest>,
     ) -> Result<Response<Self::ProcessRequestStreamStream>, Status> {
         let req = request.into_inner();
-        let request_id = req.request_id.clone();
-        
+        let request_id = RequestId::new(req.request_id.clone())
+            .map_err(|e| Status::from(ChinjuError::from(e)))?;
+
         info!(request_id = %request_id, "Processing streaming AI request");
 
-        // Create channel for streaming
+        // Reuse the full processing pipeline (credential/policy/audit/token/C13).
+        let full_response = self.process_request(Request::new(req)).await?;
+        let final_response = full_response.into_inner();
+        let content = final_response
+            .payload
+            .as_ref()
+            .map(|payload| payload.content.clone())
+            .unwrap_or_default();
+
         let (tx, rx) = tokio::sync::mpsc::channel(10);
-        
-        // Spawn task to send chunks
-        let token_service = self.token_service.clone();
+
+        // Emit incremental chunks and then the already-computed final response.
+        const STREAM_CHUNK_BYTES: usize = 160;
         tokio::spawn(async move {
-            // Consume tokens
-            let token_cost = 100;
-            {
-                let mut ts = token_service.write().await;
-                if !ts.consume(token_cost) {
-                    let _ = tx.send(Err(Status::resource_exhausted("Insufficient tokens"))).await;
+            let mut buffer = String::new();
+            for ch in content.chars() {
+                buffer.push(ch);
+                if buffer.len() < STREAM_CHUNK_BYTES {
+                    continue;
+                }
+                let msg = ProcessRequestChunk {
+                    chunk: Some(process_request_chunk::Chunk::Text(buffer.clone())),
+                };
+                if tx.send(Ok(msg)).await.is_err() {
+                    return;
+                }
+                buffer.clear();
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    mock::STREAMING_CHUNK_DELAY_MS,
+                ))
+                .await;
+            }
+
+            if !buffer.is_empty() {
+                let msg = ProcessRequestChunk {
+                    chunk: Some(process_request_chunk::Chunk::Text(buffer)),
+                };
+                if tx.send(Ok(msg)).await.is_err() {
                     return;
                 }
             }
 
-            // Send text chunks
-            let chunks = vec![
-                "[CHINJU Mock Streaming Response]\n",
-                "This is a streaming response...\n",
-                "Processing your request...\n",
-                "CHINJU Protocol active.\n",
-                "Response complete.",
-            ];
-
-            for chunk in chunks {
-                let msg = ProcessRequestChunk {
-                    chunk: Some(process_request_chunk::Chunk::Text(chunk.to_string())),
-                };
-                if tx.send(Ok(msg)).await.is_err() {
-                    break;
-                }
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            }
-
-            // Send final response
-            let final_response = ProcessRequestResponse {
-                response_id: format!("resp_{}", Uuid::new_v4()),
-                payload: Some(AiResponsePayload {
-                    content: "Streaming complete".to_string(),
-                    finish_reason: FinishReason::Stop.into(),
-                    usage: Some(TokenUsage {
-                        prompt_tokens: 50,
-                        completion_tokens: 100,
-                        total_tokens: 150,
-                    }),
-                    model: "mock".to_string(),
-                }),
-                metadata: Some(ProcessingMetadata {
-                    processing_time_ms: 500,
-                    applied_policy: None,
-                    lpt_score: 0.75,
-                    chinju_tokens_consumed: token_cost,
-                    audit_log_id: format!("audit_{}", Uuid::new_v4()),
-                    trust_level: TrustLevel::Mock.into(),
-                    policy_decision: None,
-                }),
-                warnings: vec![],
-            };
-
-            let _ = tx.send(Ok(ProcessRequestChunk {
-                chunk: Some(process_request_chunk::Chunk::FinalResponse(final_response)),
-            })).await;
+            let _ = tx
+                .send(Ok(ProcessRequestChunk {
+                    chunk: Some(process_request_chunk::Chunk::FinalResponse(final_response)),
+                }))
+                .await;
         });
 
-        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+            rx,
+        )))
     }
 
     async fn validate_request(
@@ -1223,8 +1229,8 @@ impl AiGatewayService for GatewayService {
                 cred,
                 &VerifyOptions {
                     skip_revocation_check: false,
-                    min_capability_score: 0.3,
-                    min_chain_length: 0,
+                    min_capability_score: policy::MIN_CAPABILITY_SCORE,
+                    min_chain_length: constants::security::MIN_CHAIN_LENGTH as u64,
                     require_hardware_attestation: false,
                 },
             );
@@ -1249,7 +1255,7 @@ impl AiGatewayService for GatewayService {
 
         // Predict policy decision
         let context = RequestContext {
-            request_id: "validation".to_string(),
+            request_id: RequestId::new("validation").expect("static request id must be valid"),
             credential: req.credential,
             payload: req.payload,
             client_ip: None,
@@ -1277,13 +1283,13 @@ impl AiGatewayService for GatewayService {
         let state = *self.state.read().await;
         let token_svc = self.token_service.read().await;
         let balance = token_svc.get_balance();
-        
+
         let response = GetAiStatusResponse {
             state: state.into(),
             limits: Some(OperatingLimits {
-                max_requests_per_second: 10.0,
-                max_concurrent: 5,
-                max_tokens_per_request: 10000,
+                max_requests_per_second: rate_limit::DEFAULT_RPS,
+                max_concurrent: rate_limit::MAX_CONCURRENT,
+                max_tokens_per_request: rate_limit::MAX_TOKENS_PER_REQUEST,
                 streaming_allowed: true,
                 allowed_models: vec!["mock".to_string()],
             }),
@@ -1297,15 +1303,15 @@ impl AiGatewayService for GatewayService {
                 reserved: 0,
                 total_consumed: token_svc.total_consumed(),
                 decay: Some(DecayParameters {
-                    rate_per_second: 0.0001,
-                    minimum_balance: 100,
-                    warning_threshold: 1000,
+                    rate_per_second: token::DECAY_RATE_PER_SECOND,
+                    minimum_balance: token::MINIMUM_BALANCE,
+                    warning_threshold: token::WARNING_THRESHOLD,
                     last_decay_at: Self::now(),
                 }),
                 updated_at: Self::now(),
-                state: if balance > 1000 {
+                state: if balance > token::HEALTHY_THRESHOLD {
                     BalanceState::Healthy.into()
-                } else if balance > 100 {
+                } else if balance > token::CRITICAL_THRESHOLD {
                     BalanceState::Low.into()
                 } else {
                     BalanceState::Critical.into()
@@ -1361,7 +1367,7 @@ impl AiGatewayService for GatewayService {
                 // 10.3.3: Handle verification failure based on initialization status
                 if !is_initialized {
                     // Check if we're in a permissive environment
-                    let allow_unverified = std::env::var("CHINJU_ALLOW_UNVERIFIED_HALT")
+                    let allow_unverified = std::env::var(env::ALLOW_UNVERIFIED_HALT)
                         .map(|v| v == "true" || v == "1")
                         .unwrap_or(false);
 
@@ -1373,13 +1379,15 @@ impl AiGatewayService for GatewayService {
                     } else {
                         error!(
                             error = %e,
-                            "Threshold verifier not initialized and CHINJU_ALLOW_UNVERIFIED_HALT is not set"
+                            "Threshold verifier not initialized and {} is not set",
+                            env::ALLOW_UNVERIFIED_HALT
                         );
-                        return Err(Status::failed_precondition(
+                        return Err(Status::failed_precondition(format!(
                             "Threshold verifier not initialized. \
                              Emergency halt requires manual intervention. \
-                             Set CHINJU_ALLOW_UNVERIFIED_HALT=true to override (DANGEROUS).",
-                        ));
+                             Set {}=true to override (DANGEROUS).",
+                            env::ALLOW_UNVERIFIED_HALT
+                        )));
                     }
                 } else {
                     return Err(Status::permission_denied(format!(
@@ -1411,9 +1419,9 @@ impl AiGatewayService for GatewayService {
         info!("Resume from halt requested");
 
         // Verify threshold signature (Phase 4.4)
-        let auth = req.authorization.ok_or_else(|| {
-            Status::permission_denied("Threshold signature required for resume")
-        })?;
+        let auth = req
+            .authorization
+            .ok_or_else(|| Status::permission_denied("Threshold signature required for resume"))?;
 
         // Verify the threshold signature
         let message = "RESUME_FROM_HALT";
@@ -1472,5 +1480,110 @@ impl AiGatewayService for GatewayService {
         };
 
         Ok(Response::new(response))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gen::chinju::api::gateway::process_request_chunk;
+    use crate::gen::chinju::api::gateway::{AiRequestPayload, Message, ProcessRequestRequest};
+    use crate::services::audit::{AuditEventType, HashChainManager};
+    use tokio::sync::mpsc;
+    use tokio::time::{timeout, Duration};
+    use tokio_stream::StreamExt;
+    use tonic::Code;
+
+    async fn create_test_gateway_with_audit_channel() -> (
+        GatewayService,
+        mpsc::Receiver<crate::services::audit::AuditLogEntry>,
+    ) {
+        let token_service = Arc::new(RwLock::new(TokenService::new(10_000)));
+        let credential_service = Arc::new(CredentialServiceImpl::new());
+        let policy_engine = Arc::new(PolicyEngine::new());
+
+        let (tx, rx) = mpsc::channel(100);
+        let chain = Arc::new(HashChainManager::new());
+        let audit_logger = Arc::new(AuditLogger::new(tx, chain, "test-sidecar"));
+
+        let gateway = GatewayService::with_audit_logger(
+            token_service,
+            credential_service,
+            policy_engine,
+            audit_logger,
+        )
+        .await;
+
+        (gateway, rx)
+    }
+
+    fn build_streaming_request(request_id: &str) -> ProcessRequestRequest {
+        ProcessRequestRequest {
+            request_id: request_id.to_string(),
+            credential: Some(Default::default()),
+            payload: Some(AiRequestPayload {
+                model: "mock".to_string(),
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: "hello".to_string(),
+                    name: String::new(),
+                }],
+                parameters: None,
+                system_prompt: String::new(),
+            }),
+            options: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_request_stream_rejects_invalid_request_id() {
+        let (gateway, _rx) = create_test_gateway_with_audit_channel().await;
+        let req = build_streaming_request("bad request id");
+
+        let err = gateway
+            .process_request_stream(Request::new(req))
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.code(), Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_process_request_stream_emits_final_response_and_audit_entries() {
+        let (gateway, mut rx) = create_test_gateway_with_audit_channel().await;
+        let req = build_streaming_request("req-stream-1");
+
+        let response = gateway
+            .process_request_stream(Request::new(req))
+            .await
+            .expect("stream should start");
+        let mut stream = response.into_inner();
+
+        let mut saw_final = false;
+        while let Some(item) = stream.next().await {
+            let chunk = item.expect("chunk should be ok");
+            if let Some(process_request_chunk::Chunk::FinalResponse(final_response)) = chunk.chunk {
+                saw_final = true;
+                assert!(final_response.payload.is_some());
+                let metadata = final_response
+                    .metadata
+                    .expect("metadata should be present on final response");
+                assert!(metadata.audit_log_id.starts_with("audit_"));
+                break;
+            }
+        }
+        assert!(saw_final, "stream should include final response chunk");
+
+        let first = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("first audit receive should not timeout")
+            .expect("first audit entry should exist");
+        let second = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("second audit receive should not timeout")
+            .expect("second audit entry should exist");
+
+        assert_eq!(first.event_type, AuditEventType::AiRequest);
+        assert_eq!(second.event_type, AuditEventType::AiResponse);
     }
 }

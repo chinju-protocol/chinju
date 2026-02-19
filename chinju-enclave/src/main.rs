@@ -12,25 +12,32 @@ use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 fn main() {
+    let env_filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+
     // Initialize logging
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
+        .with(env_filter)
         .init();
 
     info!("CHINJU Enclave starting...");
     info!("Version: {}", env!("CARGO_PKG_VERSION"));
 
     // Get port from environment or use default
-    let port: u32 = std::env::var("ENCLAVE_PORT")
-        .unwrap_or_else(|_| "5000".to_string())
-        .parse()
-        .expect("Invalid ENCLAVE_PORT");
-
-    let config = ServerConfig {
-        port,
-        backlog: 128,
+    let port: u32 = match std::env::var("ENCLAVE_PORT") {
+        Ok(value) => match value.parse() {
+            Ok(port) => port,
+            Err(e) => {
+                eprintln!("Invalid ENCLAVE_PORT '{}': {}", value, e);
+                std::process::exit(2);
+            }
+        },
+        Err(_) => 5000,
     };
+
+    let config = ServerConfig { port, backlog: 128 };
 
     let server = VsockServer::new(config);
 

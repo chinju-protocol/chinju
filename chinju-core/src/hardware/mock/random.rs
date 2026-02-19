@@ -74,7 +74,7 @@ impl RandomSource for MockRandom {
 
     fn entropy_quality(&self) -> Result<EntropyQuality, HardwareError> {
         Ok(EntropyQuality {
-            bits_per_sample: 1.0, // Assumed good for CSPRNG
+            bits_per_sample: 1.0,  // Assumed good for CSPRNG
             nist_compliant: false, // Not tested
             source_type: "CSPRNG (rand crate)".to_string(),
         })

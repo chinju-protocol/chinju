@@ -136,7 +136,10 @@ async fn test_concurrent_access_no_deadlock() {
     })
     .await;
 
-    assert!(result.is_ok(), "Concurrent access test timed out (potential deadlock)");
+    assert!(
+        result.is_ok(),
+        "Concurrent access test timed out (potential deadlock)"
+    );
 }
 
 /// Test that we can detect incorrect lock order at runtime
@@ -149,7 +152,10 @@ async fn test_concurrent_access_with_violation_detection() {
         push_lock_order(LOCK_ORDER_TOKEN_SERVICE, "TokenService"); // Wrong order
     });
 
-    assert!(result.is_err(), "Lock order violation should cause panic in debug mode");
+    assert!(
+        result.is_err(),
+        "Lock order violation should cause panic in debug mode"
+    );
 }
 
 // =============================================================================
@@ -337,5 +343,9 @@ fn test_all_unique_lock_orders() {
     let mut sorted = orders.to_vec();
     sorted.sort();
     sorted.dedup();
-    assert_eq!(sorted.len(), orders.len(), "Duplicate lock order values detected");
+    assert_eq!(
+        sorted.len(),
+        orders.len(),
+        "Duplicate lock order values detected"
+    );
 }

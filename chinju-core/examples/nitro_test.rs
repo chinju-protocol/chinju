@@ -152,7 +152,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plaintext = b"Secret data to seal";
     match client.seal(plaintext) {
         Ok(sealed_data) => {
-            println!("  ✅ Sealed:   {} bytes -> {} bytes", plaintext.len(), sealed_data.len());
+            println!(
+                "  ✅ Sealed:   {} bytes -> {} bytes",
+                plaintext.len(),
+                sealed_data.len()
+            );
 
             match client.unseal(&sealed_data) {
                 Ok(unsealed) => {

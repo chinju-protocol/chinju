@@ -15,7 +15,9 @@ use tracing::{debug, info, warn};
 /// Errors from extraction deterrent
 #[derive(Debug, Error)]
 pub enum ExtractionDeterrentError {
-    #[error("Rate limit exceeded for user {user_id}: {queries_per_hour} queries/hour (limit: {limit})")]
+    #[error(
+        "Rate limit exceeded for user {user_id}: {queries_per_hour} queries/hour (limit: {limit})"
+    )]
     RateLimitExceeded {
         user_id: String,
         queries_per_hour: u64,

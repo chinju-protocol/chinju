@@ -114,8 +114,8 @@ impl VsockClient {
             self.config.cid, self.config.port
         );
 
-        let mut stream = VsockStream::connect(&addr)
-            .map_err(|e| NitroError::ConnectionFailed(e.to_string()))?;
+        let mut stream =
+            VsockStream::connect(&addr).map_err(|e| NitroError::ConnectionFailed(e.to_string()))?;
 
         // Set read/write timeout
         let timeout = Duration::from_millis(self.config.timeout_ms);

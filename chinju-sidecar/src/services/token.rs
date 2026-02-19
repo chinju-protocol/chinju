@@ -15,6 +15,7 @@ use crate::gen::chinju::token::{
     AiOperatingState, BalanceState, ConsumptionReason, DecayParameters, GrantReason,
     OperatingLimits, SurvivalToken, TokenBalance, TokenConsumption, TokenGrant, TokenMetadata,
 };
+use crate::ids::RequestId;
 use crate::services::signature::ThresholdVerifier;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -88,11 +89,7 @@ impl TokenService {
     /// Grant tokens (from authorized source)
     pub fn grant(&mut self, amount: u64) {
         self.balance += amount;
-        info!(
-            amount,
-            new_balance = self.balance,
-            "Tokens granted"
-        );
+        info!(amount, new_balance = self.balance, "Tokens granted");
     }
 
     /// Apply decay (tokens naturally decrease over time)
@@ -100,11 +97,7 @@ impl TokenService {
         let decay_amount = (self.balance as f64 * rate) as u64;
         if decay_amount > 0 && self.balance > decay_amount {
             self.balance -= decay_amount;
-            info!(
-                decay_amount,
-                remaining = self.balance,
-                "Decay applied"
-            );
+            info!(decay_amount, remaining = self.balance, "Decay applied");
         }
     }
 
@@ -193,13 +186,14 @@ pub struct TokenServiceImpl {
     /// Grant records
     grants: Arc<RwLock<Vec<TokenGrant>>>,
     /// Idempotency cache (request_id -> consumption_id)
-    idempotency_cache: Arc<RwLock<HashMap<String, String>>>,
+    idempotency_cache: Arc<RwLock<HashMap<RequestId, String>>>,
     /// Threshold verifier for large grants/emergency replenish
     threshold_verifier: Arc<ThresholdVerifier>,
     /// Last decay timestamp
     last_decay_at: Arc<RwLock<i64>>,
     /// Balance watchers (owner_id -> sender)
-    watchers: Arc<RwLock<HashMap<String, Vec<tokio::sync::mpsc::Sender<Result<BalanceUpdate, Status>>>>>>,
+    watchers:
+        Arc<RwLock<HashMap<String, Vec<tokio::sync::mpsc::Sender<Result<BalanceUpdate, Status>>>>>>,
 }
 
 impl TokenServiceImpl {
@@ -344,8 +338,10 @@ impl TokenServiceTrait for TokenServiceImpl {
     ) -> Result<Response<ConsumeTokenResponse>, Status> {
         let req = request.into_inner();
         let amount = req.amount;
-        let request_id = req.request_id.clone();
-        let reason = ConsumptionReason::try_from(req.reason).unwrap_or(ConsumptionReason::Unspecified);
+        let request_id = RequestId::new(req.request_id.clone())
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let reason =
+            ConsumptionReason::try_from(req.reason).unwrap_or(ConsumptionReason::Unspecified);
 
         // Check idempotency
         {
@@ -390,7 +386,9 @@ impl TokenServiceTrait for TokenServiceImpl {
                         "Insufficient balance: {} required, {} available",
                         amount, new_balance
                     ),
-                    metadata: [("field".to_string(), "amount".to_string())].into_iter().collect(),
+                    metadata: [("field".to_string(), "amount".to_string())]
+                        .into_iter()
+                        .collect(),
                     suggestions: vec![],
                     documentation_url: String::new(),
                     severity: crate::gen::chinju::common::Severity::Error.into(),
@@ -413,7 +411,7 @@ impl TokenServiceTrait for TokenServiceImpl {
                 version: 1,
             }),
             amount,
-            request_id: request_id.clone(),
+            request_id: request_id.to_string(),
             consumed_at: Self::now(),
             consumption_type: reason.into(),
         };
@@ -428,7 +426,7 @@ impl TokenServiceTrait for TokenServiceImpl {
         }
         {
             let mut cache = self.idempotency_cache.write().await;
-            cache.insert(request_id, consumption_id);
+            cache.insert(request_id.clone(), consumption_id);
         }
 
         // Notify watchers
@@ -476,7 +474,10 @@ impl TokenServiceTrait for TokenServiceImpl {
                         info!(amount, "Large grant authorized via threshold signature");
                     }
                     Ok(false) => {
-                        warn!(amount, "Threshold signature verification failed for large grant");
+                        warn!(
+                            amount,
+                            "Threshold signature verification failed for large grant"
+                        );
                         return Ok(Response::new(GrantTokenResponse {
                             success: false,
                             new_balance: None,
@@ -484,10 +485,12 @@ impl TokenServiceTrait for TokenServiceImpl {
                             error: Some(ErrorDetail {
                                 code: "AUTHORIZATION_FAILED".to_string(),
                                 message: "Threshold signature verification failed".to_string(),
-                                metadata: [("field".to_string(), "authorization".to_string())].into_iter().collect(),
-                    suggestions: vec![],
-                    documentation_url: String::new(),
-                    severity: crate::gen::chinju::common::Severity::Error.into(),
+                                metadata: [("field".to_string(), "authorization".to_string())]
+                                    .into_iter()
+                                    .collect(),
+                                suggestions: vec![],
+                                documentation_url: String::new(),
+                                severity: crate::gen::chinju::common::Severity::Error.into(),
                             }),
                         }));
                     }
@@ -518,10 +521,12 @@ impl TokenServiceTrait for TokenServiceImpl {
                             "Threshold signature required for grants > {}",
                             self.config.large_grant_threshold
                         ),
-                        metadata: [("field".to_string(), "authorization".to_string())].into_iter().collect(),
-                    suggestions: vec![],
-                    documentation_url: String::new(),
-                    severity: crate::gen::chinju::common::Severity::Error.into(),
+                        metadata: [("field".to_string(), "authorization".to_string())]
+                            .into_iter()
+                            .collect(),
+                        suggestions: vec![],
+                        documentation_url: String::new(),
+                        severity: crate::gen::chinju::common::Severity::Error.into(),
                     }),
                 }));
             }
@@ -577,7 +582,11 @@ impl TokenServiceTrait for TokenServiceImpl {
         request: Request<GetConsumptionHistoryRequest>,
     ) -> Result<Response<GetConsumptionHistoryResponse>, Status> {
         let req = request.into_inner();
-        let limit = if req.limit > 0 { req.limit as usize } else { 100 };
+        let limit = if req.limit > 0 {
+            req.limit as usize
+        } else {
+            100
+        };
 
         let history = self.history.read().await;
 
@@ -647,7 +656,9 @@ impl TokenServiceTrait for TokenServiceImpl {
 
         info!(owner_id = %owner_id, "Balance watcher registered");
 
-        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+            rx,
+        )))
     }
 
     async fn get_depletion_forecast(
@@ -660,14 +671,13 @@ impl TokenServiceTrait for TokenServiceImpl {
         let history = self.history.read().await;
 
         // Calculate consumption rate from recent history
-        let recent_consumptions: Vec<_> = history
-            .iter()
-            .rev()
-            .take(100)
-            .collect();
+        let recent_consumptions: Vec<_> = history.iter().rev().take(100).collect();
 
         let current_rate = if !recent_consumptions.is_empty() {
-            let total: u64 = recent_consumptions.iter().map(|r| r.consumption.amount).sum();
+            let total: u64 = recent_consumptions
+                .iter()
+                .map(|r| r.consumption.amount)
+                .sum();
             let count = recent_consumptions.len() as f64;
             total as f64 / count
         } else {
@@ -788,10 +798,12 @@ impl TokenServiceTrait for TokenServiceImpl {
                     error: Some(ErrorDetail {
                         code: "AUTHORIZATION_FAILED".to_string(),
                         message: "Threshold signature verification failed".to_string(),
-                        metadata: [("field".to_string(), "authorization".to_string())].into_iter().collect(),
-                    suggestions: vec![],
-                    documentation_url: String::new(),
-                    severity: crate::gen::chinju::common::Severity::Error.into(),
+                        metadata: [("field".to_string(), "authorization".to_string())]
+                            .into_iter()
+                            .collect(),
+                        suggestions: vec![],
+                        documentation_url: String::new(),
+                        severity: crate::gen::chinju::common::Severity::Error.into(),
                     }),
                 }));
             }
@@ -949,5 +961,51 @@ mod tests {
         assert!(!inner.success);
         assert!(inner.error.is_some());
         assert_eq!(inner.error.unwrap().code, "INSUFFICIENT_BALANCE");
+    }
+
+    #[tokio::test]
+    async fn test_token_service_impl_rejects_invalid_request_id() {
+        let svc = TokenServiceImpl::new();
+
+        let req = Request::new(ConsumeTokenRequest {
+            owner_id: None,
+            amount: 100,
+            reason: ConsumptionReason::ApiRequest.into(),
+            request_id: "invalid request id".to_string(),
+            metadata: HashMap::new(),
+        });
+
+        let err = svc.consume_token(req).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_token_service_impl_failed_request_not_cached_for_idempotency() {
+        let config = TokenServiceConfig {
+            initial_balance: 100,
+            ..Default::default()
+        };
+        let svc = TokenServiceImpl::with_config(config);
+
+        let fail_req = Request::new(ConsumeTokenRequest {
+            owner_id: None,
+            amount: 200,
+            reason: ConsumptionReason::ApiRequest.into(),
+            request_id: "retry-after-failure".to_string(),
+            metadata: HashMap::new(),
+        });
+        let fail_resp = svc.consume_token(fail_req).await.unwrap().into_inner();
+        assert!(!fail_resp.success);
+
+        let retry_req = Request::new(ConsumeTokenRequest {
+            owner_id: None,
+            amount: 50,
+            reason: ConsumptionReason::ApiRequest.into(),
+            request_id: "retry-after-failure".to_string(),
+            metadata: HashMap::new(),
+        });
+        let retry_resp = svc.consume_token(retry_req).await.unwrap().into_inner();
+        assert!(retry_resp.success);
+        assert_eq!(retry_resp.new_balance.unwrap().current_balance, 50);
     }
 }

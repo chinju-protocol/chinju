@@ -232,7 +232,8 @@ impl SoftDeadMansSwitch {
     }
 
     fn set_state(&self, state: SwitchState) {
-        self.state.store(Self::encode_state(state), Ordering::SeqCst);
+        self.state
+            .store(Self::encode_state(state), Ordering::SeqCst);
     }
 
     async fn trigger_emergency(&self) {
@@ -331,14 +332,12 @@ impl DeadMansSwitch for SoftDeadMansSwitch {
                 if elapsed > switch.config.heartbeat_timeout {
                     match current_state {
                         SwitchState::Armed => {
-                            warn!(
-                                "Heartbeat timeout! Last heartbeat was {:?} ago",
-                                elapsed
-                            );
+                            warn!("Heartbeat timeout! Last heartbeat was {:?} ago", elapsed);
                             switch.set_state(SwitchState::GracePeriod);
                         }
                         SwitchState::GracePeriod => {
-                            if elapsed > switch.config.heartbeat_timeout + switch.config.grace_period
+                            if elapsed
+                                > switch.config.heartbeat_timeout + switch.config.grace_period
                             {
                                 error!("Grace period expired! Triggering emergency!");
                                 switch.trigger_emergency().await;
@@ -455,7 +454,9 @@ mod tests {
     #[test]
     fn test_switch_state_encoding() {
         assert_eq!(
-            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(SwitchState::Disarmed)),
+            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(
+                SwitchState::Disarmed
+            )),
             SwitchState::Disarmed
         );
         assert_eq!(
@@ -463,11 +464,15 @@ mod tests {
             SwitchState::Armed
         );
         assert_eq!(
-            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(SwitchState::GracePeriod)),
+            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(
+                SwitchState::GracePeriod
+            )),
             SwitchState::GracePeriod
         );
         assert_eq!(
-            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(SwitchState::Triggered)),
+            SoftDeadMansSwitch::decode_state(SoftDeadMansSwitch::encode_state(
+                SwitchState::Triggered
+            )),
             SwitchState::Triggered
         );
     }
@@ -566,6 +571,6 @@ mod tests {
 
         let retrieved = switch.get_environment();
         assert_eq!(retrieved.temperature, Some(30.0));
-        assert_eq!(retrieved.on_mains_power, true);
+        assert!(retrieved.on_mains_power);
     }
 }

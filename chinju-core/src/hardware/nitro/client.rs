@@ -80,7 +80,10 @@ impl NitroEnclaveClient {
         challenge: &[u8],
         user_data: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, NitroError> {
-        debug!("Requesting attestation with {} byte challenge", challenge.len());
+        debug!(
+            "Requesting attestation with {} byte challenge",
+            challenge.len()
+        );
 
         let request = EnclaveRequest::GetAttestation {
             challenge: challenge.to_vec(),

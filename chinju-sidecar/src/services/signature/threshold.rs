@@ -74,8 +74,7 @@ impl ThresholdVerifier {
 
     /// Initialize with a trusted dealer key generation (for testing/development)
     pub async fn init_trusted_dealer(&self) -> Result<Vec<u8>, ThresholdError> {
-        let coordinator =
-            FrostCoordinator::new(self.config.threshold, self.config.total)?;
+        let coordinator = FrostCoordinator::new(self.config.threshold, self.config.total)?;
 
         // Run trusted dealer key generation
         let _shares = coordinator.trusted_dealer_keygen()?;
@@ -106,7 +105,7 @@ impl ThresholdVerifier {
             let pubkey_bytes = hex::decode(&pubkey_hex).map_err(|e| {
                 ThresholdError::InvalidSignature(format!("Invalid hex public key: {}", e))
             })?;
-            
+
             self.set_group_public_key(pubkey_bytes).await;
             info!("Initialized threshold verifier from environment variable");
         }
@@ -127,11 +126,7 @@ impl ThresholdVerifier {
     }
 
     /// Verify a threshold signature
-    pub async fn verify(
-        &self,
-        message: &[u8],
-        signature: &[u8],
-    ) -> Result<bool, ThresholdError> {
+    pub async fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool, ThresholdError> {
         // First try using the coordinator if available
         {
             let coordinator = self.coordinator.read().await;
@@ -154,7 +149,9 @@ impl ThresholdVerifier {
                     signature_len = signature.len(),
                     "Verifying threshold signature using public key"
                 );
-                return Ok(FrostCoordinator::verify_with_pubkey(pubkey, message, signature)?);
+                return Ok(FrostCoordinator::verify_with_pubkey(
+                    pubkey, message, signature,
+                )?);
             }
         }
 
@@ -180,7 +177,7 @@ impl ThresholdVerifier {
 
         // Try to verify cryptographically if possible
         if self.is_initialized().await {
-             // For now, we verify each individual signature
+            // For now, we verify each individual signature
             // In a full implementation, we would aggregate and verify
             for sig in &threshold_sig.signatures {
                 if sig.signature.is_empty() {

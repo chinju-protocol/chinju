@@ -12,10 +12,14 @@ repository = "https://github.com/chinju-protocol/chinju-core"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
 serde_json = "1.0"
+serde_bytes = "0.11"
+chrono = "0.4"
 
 # Cryptography
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 sha2 = "0.10"
+hmac = "0.12"
+rsa = { version = "0.9", features = ["sha2"] }
 rand = "0.8"
 rand_core = "0.6"
 hex = "0.4"
@@ -34,14 +38,14 @@ nix = { version = "0.27", features = ["socket"] }
 
 # AWS Nitro Enclaves NSM API (only available on Nitro Enclaves)
 # This will be enabled when building for actual Enclave
-# aws-nitro-enclaves-nsm-api = { version = "0.4", optional = true }
+aws-nitro-enclaves-nsm-api = { version = "0.4", optional = true }
 
 [features]
 default = ["mock"]
 # Mock mode for local development (simulates NSM API)
 mock = []
 # Real NSM API (only works inside Nitro Enclave)
-# nsm = ["dep:aws-nitro-enclaves-nsm-api"]
+nsm = ["dep:aws-nitro-enclaves-nsm-api"]
 
 [profile.release]
 lto = true

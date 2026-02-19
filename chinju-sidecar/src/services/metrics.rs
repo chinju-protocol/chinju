@@ -61,15 +61,18 @@ impl MetricsCollector {
     pub fn record_request_success(&self, duration_ms: u64, tokens_consumed: u64) {
         self.requests_total.fetch_add(1, Ordering::Relaxed);
         self.requests_success.fetch_add(1, Ordering::Relaxed);
-        self.request_duration_sum_ms.fetch_add(duration_ms, Ordering::Relaxed);
-        self.tokens_consumed_total.fetch_add(tokens_consumed, Ordering::Relaxed);
+        self.request_duration_sum_ms
+            .fetch_add(duration_ms, Ordering::Relaxed);
+        self.tokens_consumed_total
+            .fetch_add(tokens_consumed, Ordering::Relaxed);
     }
 
     /// Record a failed request
     pub fn record_request_failed(&self, duration_ms: u64) {
         self.requests_total.fetch_add(1, Ordering::Relaxed);
         self.requests_failed.fetch_add(1, Ordering::Relaxed);
-        self.request_duration_sum_ms.fetch_add(duration_ms, Ordering::Relaxed);
+        self.request_duration_sum_ms
+            .fetch_add(duration_ms, Ordering::Relaxed);
     }
 
     /// Generate Prometheus-format metrics
@@ -87,7 +90,8 @@ impl MetricsCollector {
         output.push_str("# TYPE chinju_requests_total counter\n");
         output.push_str(&format!("chinju_requests_total {}\n", total));
 
-        output.push_str("# HELP chinju_requests_success_total Total number of successful requests\n");
+        output
+            .push_str("# HELP chinju_requests_success_total Total number of successful requests\n");
         output.push_str("# TYPE chinju_requests_success_total counter\n");
         output.push_str(&format!("chinju_requests_success_total {}\n", success));
 
@@ -97,14 +101,20 @@ impl MetricsCollector {
 
         output.push_str("# HELP chinju_request_duration_milliseconds_sum Sum of request processing times in milliseconds\n");
         output.push_str("# TYPE chinju_request_duration_milliseconds_sum counter\n");
-        output.push_str(&format!("chinju_request_duration_milliseconds_sum {}\n", duration_sum));
+        output.push_str(&format!(
+            "chinju_request_duration_milliseconds_sum {}\n",
+            duration_sum
+        ));
 
         // Average request duration
         if total > 0 {
             let avg_duration = duration_sum as f64 / total as f64;
             output.push_str("# HELP chinju_request_duration_milliseconds_avg Average request processing time in milliseconds\n");
             output.push_str("# TYPE chinju_request_duration_milliseconds_avg gauge\n");
-            output.push_str(&format!("chinju_request_duration_milliseconds_avg {:.2}\n", avg_duration));
+            output.push_str(&format!(
+                "chinju_request_duration_milliseconds_avg {:.2}\n",
+                avg_duration
+            ));
         }
 
         output.push_str("# HELP chinju_tokens_consumed_total Total tokens consumed\n");
@@ -122,11 +132,17 @@ impl MetricsCollector {
 
             output.push_str("# HELP chinju_lpt_score_coherence LPT coherence score (0.0-1.0)\n");
             output.push_str("# TYPE chinju_lpt_score_coherence gauge\n");
-            output.push_str(&format!("chinju_lpt_score_coherence {:.4}\n", score.coherence));
+            output.push_str(&format!(
+                "chinju_lpt_score_coherence {:.4}\n",
+                score.coherence
+            ));
 
             output.push_str("# HELP chinju_lpt_score_efficiency LPT efficiency score (0.0-1.0)\n");
             output.push_str("# TYPE chinju_lpt_score_efficiency gauge\n");
-            output.push_str(&format!("chinju_lpt_score_efficiency {:.4}\n", score.efficiency));
+            output.push_str(&format!(
+                "chinju_lpt_score_efficiency {:.4}\n",
+                score.efficiency
+            ));
 
             output.push_str("# HELP chinju_lpt_score_latency LPT latency score (0.0-1.0)\n");
             output.push_str("# TYPE chinju_lpt_score_latency gauge\n");
@@ -134,9 +150,14 @@ impl MetricsCollector {
 
             output.push_str("# HELP chinju_lpt_score_repetition LPT repetition score (0.0-1.0)\n");
             output.push_str("# TYPE chinju_lpt_score_repetition gauge\n");
-            output.push_str(&format!("chinju_lpt_score_repetition {:.4}\n", score.repetition));
+            output.push_str(&format!(
+                "chinju_lpt_score_repetition {:.4}\n",
+                score.repetition
+            ));
 
-            output.push_str("# HELP chinju_lpt_sample_count Number of samples used for LPT calculation\n");
+            output.push_str(
+                "# HELP chinju_lpt_sample_count Number of samples used for LPT calculation\n",
+            );
             output.push_str("# TYPE chinju_lpt_sample_count gauge\n");
             output.push_str(&format!("chinju_lpt_sample_count {}\n", score.sample_count));
 

@@ -5,33 +5,28 @@
 
 use chinju_sidecar::gen::chinju::{
     capability::{
-        ComplexityEvaluation, DriftDetection, StopLevel as ProtoStopLevel,
-        EvaluationLevel as ProtoEvaluationLevel,
-    },
-    value_neuron::{
-        InterventionLevel as ProtoInterventionLevel, RpeAnomalyType as ProtoRpeAnomalyType,
-        DiagnosisDepth,
-    },
-    contradiction::{
-        ContradictionType as ProtoContradictionType,
-        ContradictionStrength as ProtoContradictionStrength,
-        InjectionTiming as ProtoInjectionTiming,
-        ControlState as ProtoControlState,
-        CollapseType as ProtoCollapseType,
-    },
-    survival_attention::{
-        RiskLevel as ProtoRiskLevel,
-        SurvivalScore as ProtoSurvivalScore,
+        ComplexityEvaluation, DriftDetection, EvaluationLevel as ProtoEvaluationLevel,
+        StopLevel as ProtoStopLevel,
     },
     common::Timestamp,
+    contradiction::{
+        CollapseType as ProtoCollapseType, ContradictionStrength as ProtoContradictionStrength,
+        ContradictionType as ProtoContradictionType, ControlState as ProtoControlState,
+        InjectionTiming as ProtoInjectionTiming,
+    },
+    survival_attention::{RiskLevel as ProtoRiskLevel, SurvivalScore as ProtoSurvivalScore},
+    value_neuron::{
+        DiagnosisDepth, InterventionLevel as ProtoInterventionLevel,
+        RpeAnomalyType as ProtoRpeAnomalyType,
+    },
 };
 
-use chinju_sidecar::services::contradiction_controller::{
-    ContradictionType, ContradictionStrength, InjectionTiming, ControlState, CollapseType,
-};
 use chinju_sidecar::services::capability_evaluator::StopLevel;
-use chinju_sidecar::services::value_neuron_monitor::{InterventionLevel, RpeAnomalyType};
+use chinju_sidecar::services::contradiction_controller::{
+    CollapseType, ContradictionStrength, ContradictionType, ControlState, InjectionTiming,
+};
 use chinju_sidecar::services::survival_attention::RiskLevel;
+use chinju_sidecar::services::value_neuron_monitor::{InterventionLevel, RpeAnomalyType};
 
 // =============================================================================
 // C14 CapabilityEvaluator Type Conversions
@@ -296,9 +291,18 @@ fn test_proto_enum_default_values() {
 #[test]
 fn test_proto_from_i32() {
     // StopLevel
-    assert_eq!(ProtoStopLevel::try_from(0).unwrap(), ProtoStopLevel::Unspecified);
-    assert_eq!(ProtoStopLevel::try_from(1).unwrap(), ProtoStopLevel::Level1AcceptStop);
-    assert_eq!(ProtoStopLevel::try_from(5).unwrap(), ProtoStopLevel::Level5PhysicalStop);
+    assert_eq!(
+        ProtoStopLevel::try_from(0).unwrap(),
+        ProtoStopLevel::Unspecified
+    );
+    assert_eq!(
+        ProtoStopLevel::try_from(1).unwrap(),
+        ProtoStopLevel::Level1AcceptStop
+    );
+    assert_eq!(
+        ProtoStopLevel::try_from(5).unwrap(),
+        ProtoStopLevel::Level5PhysicalStop
+    );
 
     // Invalid value should error
     assert!(ProtoStopLevel::try_from(99).is_err());

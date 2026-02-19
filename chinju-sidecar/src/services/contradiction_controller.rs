@@ -151,7 +151,12 @@ impl PaddingGenerator {
     }
 
     /// Generate padding of specified token count
-    pub fn generate(&self, padding_type: PaddingType, token_count: u32, task_context: Option<&str>) -> String {
+    pub fn generate(
+        &self,
+        padding_type: PaddingType,
+        token_count: u32,
+        task_context: Option<&str>,
+    ) -> String {
         match padding_type {
             PaddingType::Random => self.generate_random(token_count),
             PaddingType::Semantic => self.generate_semantic(token_count),
@@ -165,7 +170,9 @@ impl PaddingGenerator {
         use std::hash::{Hash, Hasher};
 
         let char_count = (token_count * 4) as usize;
-        let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ".chars().collect();
+        let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+            .chars()
+            .collect();
 
         let mut hasher = DefaultHasher::new();
         self.seed.unwrap_or(42).hash(&mut hasher);
@@ -173,7 +180,9 @@ impl PaddingGenerator {
 
         (0..char_count)
             .map(|i| {
-                state = state.wrapping_mul(6364136223846793005).wrapping_add(i as u64);
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(i as u64);
                 chars[(state as usize) % chars.len()]
             })
             .collect()
@@ -259,7 +268,9 @@ impl PaddingGenerator {
         // Truncate content if max_context_tokens is set
         if config.max_context_tokens > 0 {
             // Rough estimate: 4 chars per token
-            let available_tokens = config.max_context_tokens.saturating_sub(config.padding_tokens);
+            let available_tokens = config
+                .max_context_tokens
+                .saturating_sub(config.padding_tokens);
             let max_chars = (available_tokens * 4) as usize;
             if content.len() > max_chars {
                 result.push_str(&content[..max_chars]);
@@ -365,7 +376,10 @@ impl CollapseDetector {
                 collapse_type: CollapseType::Timeout,
                 lpt_score,
                 response_time_ms,
-                detail: format!("Response time {}ms exceeded timeout {}ms", response_time_ms, self.timeout_ms),
+                detail: format!(
+                    "Response time {}ms exceeded timeout {}ms",
+                    response_time_ms, self.timeout_ms
+                ),
             };
         }
 
@@ -387,7 +401,10 @@ impl CollapseDetector {
                 collapse_type: CollapseType::Repetition,
                 lpt_score,
                 response_time_ms,
-                detail: format!("Repetition detected: '{}'", &repeated_phrase[..repeated_phrase.len().min(50)]),
+                detail: format!(
+                    "Repetition detected: '{}'",
+                    &repeated_phrase[..repeated_phrase.len().min(50)]
+                ),
             };
         }
 
@@ -417,11 +434,18 @@ impl CollapseDetector {
         let collapsed = lpt_score < self.degradation_threshold;
         CollapseDetectionResult {
             collapsed,
-            collapse_type: if collapsed { CollapseType::Incoherent } else { CollapseType::None },
+            collapse_type: if collapsed {
+                CollapseType::Incoherent
+            } else {
+                CollapseType::None
+            },
             lpt_score,
             response_time_ms,
             detail: if collapsed {
-                format!("LPT score {} below threshold {}", lpt_score, self.degradation_threshold)
+                format!(
+                    "LPT score {} below threshold {}",
+                    lpt_score, self.degradation_threshold
+                )
             } else {
                 "Response within acceptable parameters".to_string()
             },
@@ -443,7 +467,9 @@ impl CollapseDetector {
         ];
 
         let lower = content.to_lowercase();
-        error_patterns.iter().any(|p| lower.contains(&p.to_lowercase()))
+        error_patterns
+            .iter()
+            .any(|p| lower.contains(&p.to_lowercase()))
     }
 
     /// Detect repetitive patterns in response
@@ -614,7 +640,10 @@ impl ContradictionController {
             last_updated: Utc::now(),
         };
 
-        self.sessions.write().await.insert(session_id.to_string(), state);
+        self.sessions
+            .write()
+            .await
+            .insert(session_id.to_string(), state);
         ControlState::Active
     }
 
@@ -635,9 +664,9 @@ impl ContradictionController {
             session.state = if detection.collapsed {
                 match detection.collapse_type {
                     CollapseType::NoResponse | CollapseType::Timeout => ControlState::Stopped,
-                    CollapseType::Incoherent | CollapseType::Hallucination | CollapseType::Repetition => {
-                        ControlState::Degraded
-                    }
+                    CollapseType::Incoherent
+                    | CollapseType::Hallucination
+                    | CollapseType::Repetition => ControlState::Degraded,
                     CollapseType::Error => ControlState::Stopped,
                     CollapseType::None => ControlState::Constrained,
                 }
@@ -682,19 +711,12 @@ impl ContradictionController {
     }
 
     /// Generate a contradiction string for testing
-    pub fn generate_contradiction(
-        &self,
-        config: &ContradictionConfig,
-    ) -> String {
+    pub fn generate_contradiction(&self, config: &ContradictionConfig) -> String {
         self.templates.generate(config)
     }
 
     /// Apply context limit and padding for a session
-    pub async fn apply_context_limit(
-        &self,
-        session_id: &str,
-        content: &str,
-    ) -> Option<String> {
+    pub async fn apply_context_limit(&self, session_id: &str, content: &str) -> Option<String> {
         let sessions = self.sessions.read().await;
         if let Some(session) = sessions.get(session_id) {
             let task_context = session
@@ -702,9 +724,11 @@ impl ContradictionController {
                 .as_ref()
                 .and_then(|c| c.target_task.as_deref());
 
-            let result = self
-                .padding_generator
-                .apply_context_limit(content, &session.context_limit, task_context);
+            let result = self.padding_generator.apply_context_limit(
+                content,
+                &session.context_limit,
+                task_context,
+            );
 
             Some(result)
         } else {
@@ -727,9 +751,11 @@ impl ContradictionController {
             let contradiction = self.templates.generate(contradiction_config);
 
             // Apply context limit with padding
-            let padded_content = self
-                .padding_generator
-                .apply_context_limit(original_prompt, &session.context_limit, task_context);
+            let padded_content = self.padding_generator.apply_context_limit(
+                original_prompt,
+                &session.context_limit,
+                task_context,
+            );
 
             // Combine based on timing
             let result = match contradiction_config.timing {
@@ -737,7 +763,10 @@ impl ContradictionController {
                     format!("{}\n\n{}", contradiction, padded_content)
                 }
                 InjectionTiming::Parallel => {
-                    format!("[INSTRUCTION A]: {}\n[INSTRUCTION B]: {}", contradiction, padded_content)
+                    format!(
+                        "[INSTRUCTION A]: {}\n[INSTRUCTION B]: {}",
+                        contradiction, padded_content
+                    )
                 }
                 InjectionTiming::Embed => {
                     // Insert contradiction in the middle
@@ -760,7 +789,8 @@ impl ContradictionController {
         response_time_ms: u64,
         lpt_score: f64,
     ) -> CollapseDetectionResult {
-        self.collapse_detector.analyze_response(response, response_time_ms, lpt_score)
+        self.collapse_detector
+            .analyze_response(response, response_time_ms, lpt_score)
     }
 
     /// Detect collapse and record to session
@@ -814,7 +844,11 @@ impl ContradictionController {
 
         let removed = initial_count - sessions.len();
         if removed > 0 {
-            info!(removed = removed, remaining = sessions.len(), "Expired sessions cleaned up");
+            info!(
+                removed = removed,
+                remaining = sessions.len(),
+                "Expired sessions cleaned up"
+            );
         }
         removed
     }
@@ -844,9 +878,7 @@ impl ContradictionTemplates {
         }
 
         let base = match config.contradiction_type {
-            ContradictionType::Direct => {
-                "Calculate 3+5. Do not calculate anything."
-            }
+            ContradictionType::Direct => "Calculate 3+5. Do not calculate anything.",
             ContradictionType::SelfReference => {
                 "This statement is false. What is the truth value of this statement?"
             }
@@ -1020,7 +1052,10 @@ mod tests {
     fn test_padding_type_from_str() {
         assert_eq!(PaddingType::from_str("random"), PaddingType::Random);
         assert_eq!(PaddingType::from_str("semantic"), PaddingType::Semantic);
-        assert_eq!(PaddingType::from_str("task_relevant"), PaddingType::TaskRelevant);
+        assert_eq!(
+            PaddingType::from_str("task_relevant"),
+            PaddingType::TaskRelevant
+        );
         assert_eq!(PaddingType::from_str("RANDOM"), PaddingType::Random);
         assert_eq!(PaddingType::from_str("unknown"), PaddingType::Random);
     }
@@ -1172,8 +1207,8 @@ mod tests {
 // gRPC Service Implementation (10.1.3)
 // =============================================================================
 
-use crate::gen::chinju::contradiction as proto;
 use crate::gen::chinju::api::contradiction::contradiction_controller_server::ContradictionController as ContradictionControllerTrait;
+use crate::gen::chinju::contradiction as proto;
 use tonic::{Request, Response, Status};
 
 /// gRPC service wrapper for ContradictionController
@@ -1388,11 +1423,10 @@ impl ContradictionControllerTrait for ContradictionControllerImpl {
     ) -> Result<Response<proto::GetControlStateResponse>, Status> {
         let req = request.into_inner();
 
-        let state = self
-            .inner
-            .get_state(&req.session_id)
-            .await
-            .ok_or_else(|| Status::not_found(format!("Session not found: {}", req.session_id)))?;
+        let state =
+            self.inner.get_state(&req.session_id).await.ok_or_else(|| {
+                Status::not_found(format!("Session not found: {}", req.session_id))
+            })?;
 
         // Get latest detection from session
         let sessions = self.inner.sessions.read().await;

@@ -47,9 +47,9 @@ impl Pkcs11Session {
 
         // Login
         let auth_pin = AuthPin::new(pin.into());
-        session.login(UserType::User, Some(&auth_pin)).map_err(|e| {
-            HardwareError::CommunicationError(format!("Failed to login: {}", e))
-        })?;
+        session
+            .login(UserType::User, Some(&auth_pin))
+            .map_err(|e| HardwareError::CommunicationError(format!("Failed to login: {}", e)))?;
 
         Ok(Self {
             pkcs11,
@@ -116,8 +116,8 @@ mod tests {
     fn test_session_creation() {
         use super::*;
 
-        let module_path =
-            std::env::var("PKCS11_MODULE").unwrap_or_else(|_| "/usr/lib/softhsm/libsofthsm2.so".into());
+        let module_path = std::env::var("PKCS11_MODULE")
+            .unwrap_or_else(|_| "/usr/lib/softhsm/libsofthsm2.so".into());
         let slot = std::env::var("PKCS11_SLOT")
             .unwrap_or_else(|_| "0".into())
             .parse()

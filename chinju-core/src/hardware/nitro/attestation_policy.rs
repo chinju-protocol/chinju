@@ -69,8 +69,8 @@ pub struct PcrValue(pub [u8; 48]);
 impl PcrValue {
     /// Create from hex string
     pub fn from_hex(hex: &str) -> Result<Self, NitroError> {
-        let bytes = hex::decode(hex)
-            .map_err(|e| NitroError::InvalidConfig("Invalid PCR hex string"))?;
+        let bytes =
+            hex::decode(hex).map_err(|e| NitroError::InvalidConfig("Invalid PCR hex string"))?;
 
         if bytes.len() != 48 {
             return Err(NitroError::InvalidConfig(
@@ -152,19 +152,22 @@ impl AttestationPolicy {
 
     /// Set expected PCR0 (Enclave image hash)
     pub fn with_pcr0(mut self, value: &str) -> Result<Self, NitroError> {
-        self.expected_pcrs.insert(PcrIndex::Pcr0, PcrValue::from_hex(value)?);
+        self.expected_pcrs
+            .insert(PcrIndex::Pcr0, PcrValue::from_hex(value)?);
         Ok(self)
     }
 
     /// Set expected PCR1 (Kernel hash)
     pub fn with_pcr1(mut self, value: &str) -> Result<Self, NitroError> {
-        self.expected_pcrs.insert(PcrIndex::Pcr1, PcrValue::from_hex(value)?);
+        self.expected_pcrs
+            .insert(PcrIndex::Pcr1, PcrValue::from_hex(value)?);
         Ok(self)
     }
 
     /// Set expected PCR2 (Application hash)
     pub fn with_pcr2(mut self, value: &str) -> Result<Self, NitroError> {
-        self.expected_pcrs.insert(PcrIndex::Pcr2, PcrValue::from_hex(value)?);
+        self.expected_pcrs
+            .insert(PcrIndex::Pcr2, PcrValue::from_hex(value)?);
         Ok(self)
     }
 

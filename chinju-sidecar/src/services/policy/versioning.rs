@@ -50,15 +50,9 @@ impl PolicyVersion {
             version: policy_id.version,
             content_hash,
             parent_version: policy.parent_policy_id.clone(),
-            effective_from: policy
-                .validity
-                .as_ref()
-                .and_then(|v| v.not_before.clone()),
-            effective_until: policy
-                .validity
-                .as_ref()
-                .and_then(|v| v.not_after.clone()),
-            state: VersionState::Active,  // Default to Active
+            effective_from: policy.validity.as_ref().and_then(|v| v.not_before.clone()),
+            effective_until: policy.validity.as_ref().and_then(|v| v.not_after.clone()),
+            state: VersionState::Active, // Default to Active
             created_at: policy
                 .metadata
                 .as_ref()
@@ -125,10 +119,7 @@ impl PolicyVersionStore {
     /// Register a new policy version
     pub async fn register_version(&self, version: PolicyVersion) {
         let version_key = version.version_key();
-        let policy_key = format!(
-            "{}.{}",
-            version.policy_id.namespace, version.policy_id.id
-        );
+        let policy_key = format!("{}.{}", version.policy_id.namespace, version.policy_id.id);
 
         let mut versions = self.versions.write().await;
         versions.insert(version_key.clone(), version.clone());

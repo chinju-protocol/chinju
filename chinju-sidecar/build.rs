@@ -1,6 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proto_root = "../protocol/proto";
-    
+
     // Configure tonic-build
     tonic_build::configure()
         .build_server(true)

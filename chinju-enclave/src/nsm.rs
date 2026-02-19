@@ -7,12 +7,24 @@
 //! In mock mode, simulates these operations for local development.
 
 use crate::EnclaveError;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::debug;
 
+#[cfg(all(feature = "mock", not(feature = "nsm")))]
+use serde::{Deserialize, Serialize};
+#[cfg(all(feature = "mock", not(feature = "nsm")))]
+use std::collections::HashMap;
+#[cfg(all(feature = "mock", not(feature = "nsm")))]
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(feature = "nsm")]
+use aws_nitro_enclaves_nsm_api::api::{ErrorCode, Request, Response};
+#[cfg(feature = "nsm")]
+use aws_nitro_enclaves_nsm_api::driver::{nsm_exit, nsm_init, nsm_process_request};
+#[cfg(feature = "nsm")]
+use serde_bytes::ByteBuf;
+
 /// Mock attestation document (for development)
+#[cfg(all(feature = "mock", not(feature = "nsm")))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationDocument {
     pub module_id: String,
@@ -28,26 +40,38 @@ pub struct AttestationDocument {
 
 /// NSM client
 pub struct NsmClient {
-    #[cfg(feature = "mock")]
+    #[cfg(feature = "nsm")]
+    fd: Option<i32>,
+    #[cfg(all(feature = "mock", not(feature = "nsm")))]
+    #[allow(dead_code)]
     mock_mode: bool,
 }
 
 impl NsmClient {
     /// Create a new NSM client
     pub fn new() -> Result<Self, EnclaveError> {
-        #[cfg(feature = "mock")]
+        #[cfg(feature = "nsm")]
+        {
+            let fd = nsm_init();
+            if fd < 0 {
+                return Err(EnclaveError::NsmError(
+                    "Failed to initialize NSM device (/dev/nsm)".to_string(),
+                ));
+            }
+            debug!(fd = fd, "NSM client initialized");
+            return Ok(Self { fd: Some(fd) });
+        }
+
+        #[cfg(all(feature = "mock", not(feature = "nsm")))]
         {
             debug!("NSM client running in mock mode");
             Ok(Self { mock_mode: true })
         }
 
-        #[cfg(not(feature = "mock"))]
+        #[cfg(not(any(feature = "nsm", feature = "mock")))]
         {
-            // In real mode, would open /dev/nsm
-            // let fd = aws_nitro_enclaves_nsm_api::driver::nsm_init();
-            // ...
             Err(EnclaveError::NsmError(
-                "Real NSM mode not yet implemented".to_string(),
+                "No NSM backend enabled; enable `mock` or `nsm` feature".to_string(),
             ))
         }
     }
@@ -59,7 +83,29 @@ impl NsmClient {
         nonce: Option<&[u8]>,
         public_key: Option<&[u8]>,
     ) -> Result<Vec<u8>, EnclaveError> {
-        #[cfg(feature = "mock")]
+        #[cfg(feature = "nsm")]
+        {
+            let fd = self.fd.ok_or_else(|| {
+                EnclaveError::NsmError("NSM client is not initialized".to_string())
+            })?;
+
+            let request = Request::Attestation {
+                user_data: user_data.map(|v| ByteBuf::from(v.to_vec())),
+                nonce: nonce.map(|v| ByteBuf::from(v.to_vec())),
+                public_key: public_key.map(|v| ByteBuf::from(v.to_vec())),
+            };
+
+            return match nsm_process_request(fd, request) {
+                Response::Attestation { document } => Ok(document),
+                Response::Error(code) => Err(map_error_code(code)),
+                other => Err(EnclaveError::NsmError(format!(
+                    "Unexpected NSM response for attestation: {:?}",
+                    other
+                ))),
+            };
+        }
+
+        #[cfg(all(feature = "mock", not(feature = "nsm")))]
         {
             debug!("Generating mock attestation document");
 
@@ -79,29 +125,50 @@ impl NsmClient {
                 timestamp: now,
                 digest: "SHA384".to_string(),
                 pcrs,
-                certificate: vec![0u8; 32], // Mock certificate
+                certificate: vec![0u8; 32],    // Mock certificate
                 cabundle: vec![vec![0u8; 32]], // Mock CA bundle
                 user_data: user_data.map(|d| d.to_vec()),
                 nonce: nonce.map(|d| d.to_vec()),
                 public_key: public_key.map(|d| d.to_vec()),
             };
 
-            serde_cbor::to_vec(&doc)
-                .map_err(|e| EnclaveError::SerializationError(e.to_string()))
+            serde_cbor::to_vec(&doc).map_err(|e| EnclaveError::SerializationError(e.to_string()))
         }
 
-        #[cfg(not(feature = "mock"))]
+        #[cfg(not(any(feature = "nsm", feature = "mock")))]
         {
-            // Real NSM implementation would go here
             Err(EnclaveError::NsmError(
-                "Real NSM mode not yet implemented".to_string(),
+                "No NSM backend enabled; enable `mock` or `nsm` feature".to_string(),
             ))
         }
     }
 
     /// Get random bytes from NSM
     pub fn get_random(&self, length: usize) -> Result<Vec<u8>, EnclaveError> {
-        #[cfg(feature = "mock")]
+        #[cfg(feature = "nsm")]
+        {
+            let fd = self.fd.ok_or_else(|| {
+                EnclaveError::NsmError("NSM client is not initialized".to_string())
+            })?;
+            let mut out = Vec::with_capacity(length);
+
+            while out.len() < length {
+                match nsm_process_request(fd, Request::GetRandom) {
+                    Response::GetRandom { random } => out.extend_from_slice(&random),
+                    Response::Error(code) => return Err(map_error_code(code)),
+                    other => {
+                        return Err(EnclaveError::NsmError(format!(
+                            "Unexpected NSM response for GetRandom: {:?}",
+                            other
+                        )));
+                    }
+                }
+            }
+            out.truncate(length);
+            return Ok(out);
+        }
+
+        #[cfg(all(feature = "mock", not(feature = "nsm")))]
         {
             use rand::RngCore;
             let mut bytes = vec![0u8; length];
@@ -109,10 +176,10 @@ impl NsmClient {
             Ok(bytes)
         }
 
-        #[cfg(not(feature = "mock"))]
+        #[cfg(not(any(feature = "nsm", feature = "mock")))]
         {
             Err(EnclaveError::NsmError(
-                "Real NSM mode not yet implemented".to_string(),
+                "No NSM backend enabled; enable `mock` or `nsm` feature".to_string(),
             ))
         }
     }
@@ -120,8 +187,39 @@ impl NsmClient {
 
 impl Default for NsmClient {
     fn default() -> Self {
-        Self::new().expect("Failed to create NSM client")
+        match Self::new() {
+            Ok(client) => client,
+            Err(e) => {
+                tracing::error!("Failed to create NSM client: {}", e);
+                #[cfg(feature = "nsm")]
+                {
+                    Self { fd: None }
+                }
+                #[cfg(all(feature = "mock", not(feature = "nsm")))]
+                {
+                    Self { mock_mode: true }
+                }
+                #[cfg(not(any(feature = "nsm", feature = "mock")))]
+                {
+                    panic!("No NSM backend is available");
+                }
+            }
+        }
     }
+}
+
+#[cfg(feature = "nsm")]
+impl Drop for NsmClient {
+    fn drop(&mut self) {
+        if let Some(fd) = self.fd.take() {
+            nsm_exit(fd);
+        }
+    }
+}
+
+#[cfg(feature = "nsm")]
+fn map_error_code(code: ErrorCode) -> EnclaveError {
+    EnclaveError::NsmError(format!("NSM error: {:?}", code))
 }
 
 #[cfg(test)]

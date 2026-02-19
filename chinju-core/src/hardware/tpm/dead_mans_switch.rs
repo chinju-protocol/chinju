@@ -36,14 +36,11 @@ use tracing::{debug, error, info, warn};
 use tss_esapi::{
     attributes::NvIndexAttributesBuilder,
     handles::NvIndexTpmHandle,
-    interface_types::{
-        algorithm::HashingAlgorithm,
-        resource_handles::NvAuth,
-    },
+    interface_types::{algorithm::HashingAlgorithm, resource_handles::NvAuth},
     nv::storage::NvPublic,
     structures::{
-        Digest as TpmDigest, DigestValues, MaxNvBuffer, NvPublicBuilder, 
-        PcrSelectionListBuilder, PcrSlot,
+        Digest as TpmDigest, DigestValues, MaxNvBuffer, NvPublicBuilder, PcrSelectionListBuilder,
+        PcrSlot,
     },
 };
 
@@ -151,7 +148,8 @@ impl TpmDeadMansSwitch {
 
         // Restore heartbeat from NV if available
         if let Ok(timestamp) = self.read_heartbeat_from_nv().await {
-            self.last_heartbeat_timestamp.store(timestamp, Ordering::SeqCst);
+            self.last_heartbeat_timestamp
+                .store(timestamp, Ordering::SeqCst);
             debug!("Restored heartbeat timestamp from NV: {}", timestamp);
         }
 
@@ -193,9 +191,9 @@ impl TpmDeadMansSwitch {
             .map_err(|e| TpmError::OperationFailed(format!("Invalid NV index: {}", e)))?;
 
         // Check if index already exists
-        let read_result = context.context_mut().execute_without_session(|ctx| {
-            ctx.nv_read_public(nv_index)
-        });
+        let read_result = context
+            .context_mut()
+            .execute_without_session(|ctx| ctx.nv_read_public(nv_index));
 
         if read_result.is_ok() {
             debug!("NV index 0x{:08X} already exists", index);
@@ -339,8 +337,8 @@ impl TpmDeadMansSwitch {
         let pcr_slot = PcrSlot::try_from(PCR_SLOT_STATE as u32)
             .map_err(|_| TpmError::PcrError("Invalid PCR slot".into()))?;
 
-        let digest = TpmDigest::try_from(hash.as_slice())
-            .map_err(|e| TpmError::PcrError(e.to_string()))?;
+        let digest =
+            TpmDigest::try_from(hash.as_slice()).map_err(|e| TpmError::PcrError(e.to_string()))?;
 
         let digest_values = DigestValues::create(HashingAlgorithm::Sha256, digest)
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
@@ -369,8 +367,8 @@ impl TpmDeadMansSwitch {
         let pcr_slot = PcrSlot::try_from(PCR_SLOT_TAMPER as u32)
             .map_err(|_| TpmError::PcrError("Invalid PCR slot".into()))?;
 
-        let digest = TpmDigest::try_from(hash.as_slice())
-            .map_err(|e| TpmError::PcrError(e.to_string()))?;
+        let digest =
+            TpmDigest::try_from(hash.as_slice()).map_err(|e| TpmError::PcrError(e.to_string()))?;
 
         let digest_values = DigestValues::create(HashingAlgorithm::Sha256, digest)
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
@@ -399,8 +397,8 @@ impl TpmDeadMansSwitch {
         let pcr_slot = PcrSlot::try_from(PCR_SLOT_TAMPER as u32)
             .map_err(|_| TpmError::PcrError("Invalid PCR slot".into()))?;
 
-        let digest = TpmDigest::try_from(hash.as_slice())
-            .map_err(|e| TpmError::PcrError(e.to_string()))?;
+        let digest =
+            TpmDigest::try_from(hash.as_slice()).map_err(|e| TpmError::PcrError(e.to_string()))?;
 
         let digest_values = DigestValues::create(HashingAlgorithm::Sha256, digest)
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
@@ -468,7 +466,10 @@ impl TpmDeadMansSwitch {
             sealed.push(byte ^ seal_key[i % 32]);
         }
 
-        info!("Sealed {} bytes of emergency data to PCR values", data.len());
+        info!(
+            "Sealed {} bytes of emergency data to PCR values",
+            data.len()
+        );
         Ok(sealed)
     }
 
@@ -559,9 +560,9 @@ impl TpmDeadMansSwitch {
         // Undefine NV indices to clear data
         for nv_index in [NV_INDEX_HEARTBEAT, NV_INDEX_STATE, NV_INDEX_ENVIRONMENT] {
             if let Ok(handle) = NvIndexTpmHandle::new(nv_index) {
-                let _ = context
-                    .context_mut()
-                    .execute_with_nullauth_session(|ctx| ctx.nv_undefine_space(NvAuth::Owner, handle));
+                let _ = context.context_mut().execute_with_nullauth_session(|ctx| {
+                    ctx.nv_undefine_space(NvAuth::Owner, handle)
+                });
                 debug!("Cleared NV index 0x{:08X}", nv_index);
             }
         }
@@ -575,13 +576,12 @@ impl TpmDeadMansSwitch {
         for pcr_index in [PCR_SLOT_TAMPER, PCR_SLOT_STATE] {
             if let Ok(pcr_slot) = PcrSlot::try_from(pcr_index as u32) {
                 if let Ok(digest) = TpmDigest::try_from(hash.as_slice()) {
-                    if let Ok(digest_values) = DigestValues::create(HashingAlgorithm::Sha256, digest)
+                    if let Ok(digest_values) =
+                        DigestValues::create(HashingAlgorithm::Sha256, digest)
                     {
-                        let _ = context
-                            .context_mut()
-                            .execute_without_session(|ctx| {
-                                ctx.pcr_extend(pcr_slot.into(), digest_values)
-                            });
+                        let _ = context.context_mut().execute_without_session(|ctx| {
+                            ctx.pcr_extend(pcr_slot.into(), digest_values)
+                        });
                         warn!("Extended PCR {} to invalidate sealed data", pcr_index);
                     }
                 }
@@ -612,7 +612,8 @@ impl TpmDeadMansSwitch {
     }
 
     fn set_state(&self, state: SwitchState) {
-        self.state.store(Self::encode_state(state), Ordering::SeqCst);
+        self.state
+            .store(Self::encode_state(state), Ordering::SeqCst);
     }
 
     fn current_timestamp() -> u64 {
@@ -661,7 +662,8 @@ impl TpmDeadMansSwitch {
                             }
                         }
                         SwitchState::GracePeriod => {
-                            if elapsed > switch.config.heartbeat_timeout + switch.config.grace_period
+                            if elapsed
+                                > switch.config.heartbeat_timeout + switch.config.grace_period
                             {
                                 error!("TPM DMS: Grace period expired! Triggering emergency!");
                                 switch.trigger_emergency().await;
@@ -824,7 +826,8 @@ impl DeadMansSwitch for TpmDeadMansSwitch {
 
         if let Ok(mut last) = self.last_heartbeat.try_write() {
             *last = Instant::now();
-            self.last_heartbeat_timestamp.store(timestamp, Ordering::SeqCst);
+            self.last_heartbeat_timestamp
+                .store(timestamp, Ordering::SeqCst);
             debug!("TPM DMS: Heartbeat received at {}", timestamp);
 
             if self.state() == SwitchState::GracePeriod {
@@ -895,7 +898,9 @@ mod tests {
             SwitchState::GracePeriod
         );
         assert_eq!(
-            TpmDeadMansSwitch::decode_state(TpmDeadMansSwitch::encode_state(SwitchState::Triggered)),
+            TpmDeadMansSwitch::decode_state(TpmDeadMansSwitch::encode_state(
+                SwitchState::Triggered
+            )),
             SwitchState::Triggered
         );
     }
@@ -1043,7 +1048,10 @@ mod tests {
 
         switch.initialize().await.expect("Failed to initialize TPM");
 
-        let pcr_values = switch.get_pcr_values().await.expect("Failed to get PCR values");
+        let pcr_values = switch
+            .get_pcr_values()
+            .await
+            .expect("Failed to get PCR values");
 
         // Should have 2 PCR values (TAMPER and STATE)
         assert_eq!(pcr_values.len(), 2);

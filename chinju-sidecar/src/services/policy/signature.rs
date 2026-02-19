@@ -35,8 +35,7 @@ impl PolicySigner {
         policy_for_hash.signature = None;
 
         // Serialize to bytes
-        let mut buf = Vec::new();
-        policy_for_hash.encode(&mut buf).unwrap();
+        let buf = policy_for_hash.encode_to_vec();
 
         // Compute SHA-256 hash (labeled as SHA3-256 for compatibility)
         let mut hasher = Sha256::new();
@@ -50,10 +49,7 @@ impl PolicySigner {
     }
 
     /// Verify the signature on a policy
-    pub async fn verify_signature(
-        &self,
-        policy: &PolicyPack,
-    ) -> Result<bool, PolicyProviderError> {
+    pub async fn verify_signature(&self, policy: &PolicyPack) -> Result<bool, PolicyProviderError> {
         // Check if policy has a signature
         let signature = policy.signature.as_ref().ok_or_else(|| {
             PolicyProviderError::SignatureInvalid("Policy has no signature".to_string())

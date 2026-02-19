@@ -11,8 +11,8 @@
 use crate::gen::chinju::api::credential::credential_service_server::CredentialService as CredentialServiceTrait;
 use crate::gen::chinju::api::credential::*;
 use crate::gen::chinju::common::{
-    Hash, HashAlgorithm, HardwareAttestation, Identifier, Signature, SignatureAlgorithm,
-    Timestamp, TrustLevel, ValidityPeriod,
+    HardwareAttestation, Hash, HashAlgorithm, Identifier, Signature, SignatureAlgorithm, Timestamp,
+    TrustLevel, ValidityPeriod,
 };
 use crate::gen::chinju::credential::{
     CapabilityScore, CertificationLevel, CertificationStatus, ChainLink, ChainProof,
@@ -321,8 +321,7 @@ impl CredentialServiceImpl {
 
         // 2. Check expiry
         if let Some(validity) = &credential.validity {
-            if let (Some(not_before), Some(not_after)) =
-                (&validity.not_before, &validity.not_after)
+            if let (Some(not_before), Some(not_after)) = (&validity.not_before, &validity.not_after)
             {
                 let now = chrono::Utc::now().timestamp();
                 not_expired = now >= not_before.seconds && now <= not_after.seconds;
@@ -643,7 +642,8 @@ impl CredentialServiceTrait for CredentialServiceImpl {
 
         // Sign the credential data using hardware-backed signing if available
         // 10.3.1: This may fail if HSM is unavailable and fallback is disabled
-        let (issuer_signature, attestation) = self.sign_credential_data(sign_data.as_bytes()).await?;
+        let (issuer_signature, attestation) =
+            self.sign_credential_data(sign_data.as_bytes()).await?;
 
         let credential = HumanCredential {
             subject_id: pending.subject_id.clone(),
@@ -680,7 +680,10 @@ impl CredentialServiceTrait for CredentialServiceImpl {
                     certification: CertificationStatus {
                         state: CredentialState::Verified.into(),
                         level: certification_level.into(),
-                        expires_at: credential.validity.as_ref().and_then(|v| v.not_after.clone()),
+                        expires_at: credential
+                            .validity
+                            .as_ref()
+                            .and_then(|v| v.not_after.clone()),
                         conditions: vec![],
                     },
                 },
@@ -931,7 +934,9 @@ impl CredentialServiceTrait for CredentialServiceImpl {
 
         // Spawn task to send challenges
         tokio::spawn(async move {
-            for (seq, (challenge_id, challenge_type, challenge_data)) in challenges.into_iter().enumerate() {
+            for (seq, (challenge_id, challenge_type, challenge_data)) in
+                challenges.into_iter().enumerate()
+            {
                 let proto_challenge = generator.to_proto_challenge(
                     &challenge_id,
                     challenge_type,
@@ -992,7 +997,11 @@ impl CredentialServiceTrait for CredentialServiceImpl {
                 // Now safe to call test_manager without holding active_tests lock
                 for sid in session_ids {
                     if let Some(sess) = self.test_manager.get_session(&sid).await {
-                        if sess.challenges.iter().any(|(cid, _, _)| *cid == response.challenge_id) {
+                        if sess
+                            .challenges
+                            .iter()
+                            .any(|(cid, _, _)| *cid == response.challenge_id)
+                        {
                             session_id = Some(sid);
                             break;
                         }
@@ -1079,7 +1088,10 @@ impl CredentialServiceTrait for CredentialServiceImpl {
                     score: Some(score),
                     passed,
                     feedback: if passed {
-                        format!("Test passed (fallback evaluation). Certification level: {:?}", level)
+                        format!(
+                            "Test passed (fallback evaluation). Certification level: {:?}",
+                            level
+                        )
                     } else {
                         "Test failed. Score below minimum threshold.".to_string()
                     },

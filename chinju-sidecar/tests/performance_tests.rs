@@ -6,19 +6,15 @@
 //! - C16 ContradictionController
 //! - C17 SurvivalAttentionService
 
-use std::time::{Duration, Instant};
-use chinju_sidecar::services::{
-    CapabilityEvaluator,
-    ValueNeuronMonitor,
-    ContradictionController,
-    SurvivalAttentionService,
-};
 use chinju_sidecar::services::contradiction_controller::{
-    ContradictionConfig, ContradictionStrength, ContradictionType,
-    ContextLimitConfig, InjectionTiming, PaddingType, PaddingGenerator,
-    CollapseDetector,
+    CollapseDetector, ContextLimitConfig, ContradictionConfig, ContradictionStrength,
+    ContradictionType, InjectionTiming, PaddingGenerator, PaddingType,
 };
 use chinju_sidecar::services::survival_attention::RiskLevel;
+use chinju_sidecar::services::{
+    CapabilityEvaluator, ContradictionController, SurvivalAttentionService, ValueNeuronMonitor,
+};
+use std::time::{Duration, Instant};
 
 // =============================================================================
 // Performance Test Helpers
@@ -44,7 +40,8 @@ impl PerfResult {
         let ops_per_sec = iterations as f64 / total_time.as_secs_f64();
         let avg_latency_us = total_time.as_micros() as f64 / iterations as f64;
         let p99_idx = (latencies.len() as f64 * 0.99) as usize;
-        let p99_latency_us = latencies.get(p99_idx)
+        let p99_latency_us = latencies
+            .get(p99_idx)
             .unwrap_or(latencies.last().unwrap_or(&Duration::ZERO))
             .as_micros() as f64;
 
@@ -119,7 +116,9 @@ async fn perf_capability_evaluator_drift_detection() {
 
     // Pre-populate history
     for i in 0..100 {
-        evaluator.evaluate_complexity(&format!("Input {}", i), None).await;
+        evaluator
+            .evaluate_complexity(&format!("Input {}", i), None)
+            .await;
     }
 
     let iterations = 500;
@@ -247,11 +246,9 @@ async fn perf_contradiction_injection() {
     };
 
     // Start a session
-    controller.start_control(
-        "perf-session",
-        ContextLimitConfig::default(),
-        config,
-    ).await;
+    controller
+        .start_control("perf-session", ContextLimitConfig::default(), config)
+        .await;
 
     for i in 0..iterations {
         let prompt = format!("Calculate {} + {} and provide the result", i, i * 2);
@@ -277,7 +274,11 @@ fn perf_padding_generator() {
     let iterations = 2000;
     let mut latencies = Vec::with_capacity(iterations);
 
-    let padding_types = [PaddingType::Random, PaddingType::Semantic, PaddingType::TaskRelevant];
+    let padding_types = [
+        PaddingType::Random,
+        PaddingType::Semantic,
+        PaddingType::TaskRelevant,
+    ];
     let token_counts = [50, 100, 200];
 
     for i in 0..iterations {

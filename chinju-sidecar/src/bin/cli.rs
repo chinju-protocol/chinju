@@ -33,18 +33,18 @@
 //! cargo run --bin chinju-cli -- survival score "text to analyze"
 //! ```
 
-use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_client::AiGatewayServiceClient;
-use chinju_sidecar::gen::chinju::api::gateway::*;
-use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_client::ValueNeuronMonitorClient;
+use chinju_core::hardware::threshold::ceremony::{Ceremony, CeremonyPhase};
+use chinju_core::hardware::threshold::evidence::CeremonyEvidence;
 use chinju_sidecar::gen::chinju::api::capability::capability_evaluator_client::CapabilityEvaluatorClient;
 use chinju_sidecar::gen::chinju::api::contradiction::contradiction_controller_client::ContradictionControllerClient;
+use chinju_sidecar::gen::chinju::api::gateway::ai_gateway_service_client::AiGatewayServiceClient;
+use chinju_sidecar::gen::chinju::api::gateway::*;
 use chinju_sidecar::gen::chinju::api::survival_attention::survival_attention_service_client::SurvivalAttentionServiceClient;
-use chinju_sidecar::gen::chinju::value_neuron::*;
+use chinju_sidecar::gen::chinju::api::value_neuron::value_neuron_monitor_client::ValueNeuronMonitorClient;
 use chinju_sidecar::gen::chinju::capability::*;
 use chinju_sidecar::gen::chinju::contradiction::*;
 use chinju_sidecar::gen::chinju::survival_attention::*;
-use chinju_core::hardware::threshold::ceremony::{Ceremony, CeremonyPhase};
-use chinju_core::hardware::threshold::evidence::CeremonyEvidence;
+use chinju_sidecar::gen::chinju::value_neuron::*;
 use std::env;
 use std::path::Path;
 use tonic::Request;
@@ -53,7 +53,7 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         return Ok(());
@@ -139,7 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn print_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU CLI - CHINJU Protocol Command Line Interface
 
 USAGE:
@@ -182,11 +183,13 @@ EXAMPLES:
 SERVERS:
     gRPC: http://[::1]:50051
     HTTP: http://localhost:8080
-"#);
+"#
+    );
 }
 
 fn print_ceremony_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU Ceremony CLI - Genesis Key Generation
 
 USAGE:
@@ -212,7 +215,8 @@ EXAMPLES:
     chinju-cli ceremony sign "00000000000000000000000000000000"
     chinju-cli ceremony export-record
     chinju-cli ceremony verify-record evidence.json
-"#);
+"#
+    );
 }
 
 async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -227,15 +231,18 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
     let ceremony_file = format!("{}/ceremony.json", storage_path);
     let key_store_path = format!("{}/keys", storage_path);
 
-        // Helper to load or create ceremony
-        let load_ceremony = || -> Result<Ceremony, Box<dyn std::error::Error>> {
-            if Path::new(&ceremony_file).exists() {
-                let record = chinju_core::hardware::threshold::ceremony::CeremonyRecord::load_from_file(&ceremony_file)?;
-                Ok(Ceremony::from_record(record, &key_store_path))
-            } else {
-                Err("Ceremony not initialized. Run 'init' first.".into())
-            }
-        };
+    // Helper to load or create ceremony
+    let load_ceremony = || -> Result<Ceremony, Box<dyn std::error::Error>> {
+        if Path::new(&ceremony_file).exists() {
+            let record =
+                chinju_core::hardware::threshold::ceremony::CeremonyRecord::load_from_file(
+                    &ceremony_file,
+                )?;
+            Ok(Ceremony::from_record(record, &key_store_path))
+        } else {
+            Err("Ceremony not initialized. Run 'init' first.".into())
+        }
+    };
 
     match command.as_str() {
         "init" => {
@@ -245,7 +252,10 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             }
             let threshold: u16 = args[1].parse()?;
             let total: u16 = args[2].parse()?;
-            let id = args.get(3).cloned().unwrap_or_else(|| format!("genesis-{}", Uuid::new_v4()));
+            let id = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| format!("genesis-{}", Uuid::new_v4()));
 
             if Path::new(&ceremony_file).exists() {
                 eprintln!("Ceremony already exists. Use 'reset' to start over.");
@@ -254,7 +264,10 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
 
             let ceremony = Ceremony::with_storage(&id, threshold, total, &key_store_path)?;
             ceremony.record().save_to_file(&ceremony_file)?;
-            println!("Ceremony '{}' initialized with threshold {}/{}", id, threshold, total);
+            println!(
+                "Ceremony '{}' initialized with threshold {}/{}",
+                id, threshold, total
+            );
         }
         "register" => {
             if args.len() < 2 {
@@ -263,51 +276,51 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             }
             let name = &args[1];
             let mut ceremony = load_ceremony()?;
-            
+
             if ceremony.phase() == CeremonyPhase::NotStarted {
                 ceremony.start_registration()?;
             }
-            
+
             let id = ceremony.register_participant(name)?;
             ceremony.record().save_to_file(&ceremony_file)?;
             println!("Participant '{}' registered with ID {}", name, id);
         }
         "run" => {
             let mut ceremony = load_ceremony()?;
-            
+
             if ceremony.phase() == CeremonyPhase::Registration {
                 ceremony.start_key_generation()?;
             }
-            
+
             println!("Running Trusted Dealer Key Generation...");
             ceremony.run_trusted_dealer_keygen()?;
             ceremony.record().save_to_file(&ceremony_file)?;
             println!("Key generation completed successfully.");
             println!("Group Public Key generated.");
         }
-            "sign" => {
-                if args.len() < 2 {
-                    eprintln!("Usage: chinju-cli ceremony sign <genesis_hash_hex>");
-                    return Ok(());
-                }
-                let hash_hex = &args[1];
-                let hash = hex::decode(hash_hex)?;
-                
-                let mut ceremony = load_ceremony()?;
-                ceremony.set_genesis_hash(hash)?;
-                
-                println!("Restoring coordinator from key shares...");
-                ceremony.restore_coordinator()?;
-                
-                println!("Signing genesis hash with threshold signature...");
-                let signature = ceremony.sign_genesis()?;
-                ceremony.complete()?;
-                ceremony.record().save_to_file(&ceremony_file)?;
-                
-                println!("Genesis hash signed successfully.");
-                println!("Signature: {}", hex::encode(signature));
-                println!("Ceremony completed!");
+        "sign" => {
+            if args.len() < 2 {
+                eprintln!("Usage: chinju-cli ceremony sign <genesis_hash_hex>");
+                return Ok(());
             }
+            let hash_hex = &args[1];
+            let hash = hex::decode(hash_hex)?;
+
+            let mut ceremony = load_ceremony()?;
+            ceremony.set_genesis_hash(hash)?;
+
+            println!("Restoring coordinator from key shares...");
+            ceremony.restore_coordinator()?;
+
+            println!("Signing genesis hash with threshold signature...");
+            let signature = ceremony.sign_genesis()?;
+            ceremony.complete()?;
+            ceremony.record().save_to_file(&ceremony_file)?;
+
+            println!("Genesis hash signed successfully.");
+            println!("Signature: {}", hex::encode(signature));
+            println!("Ceremony completed!");
+        }
         "status" => {
             if !Path::new(&ceremony_file).exists() {
                 println!("No ceremony initialized.");
@@ -315,33 +328,40 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             }
             let ceremony = load_ceremony()?;
             let record = ceremony.record();
-            
+
             println!("╔══════════════════════════════════════════════════════════════╗");
             println!("║                   CHINJU Ceremony Status                     ║");
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ ID: {:>48} ║", record.ceremony_id);
             println!("║ Phase: {:>45} ║", record.phase.to_string());
-            println!("║ Threshold: {:>41} ║", format!("{}/{}", record.threshold, record.total));
+            println!(
+                "║ Threshold: {:>41} ║",
+                format!("{}/{}", record.threshold, record.total)
+            );
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ Participants: {:>40} ║", record.participants.len());
             for p in &record.participants {
                 println!("║   {}. {:<46} ║", p.id, p.name);
             }
-            
+
             if let Some(pk) = &record.group_public_key {
                 println!("╠══════════════════════════════════════════════════════════════╣");
                 println!("║ Group Public Key:                                            ║");
                 let pk_hex = hex::encode(pk);
-                println!("║   {}...{} ║", &pk_hex[..20], &pk_hex[pk_hex.len()-20..]);
+                println!("║   {}...{} ║", &pk_hex[..20], &pk_hex[pk_hex.len() - 20..]);
             }
-            
+
             if let Some(sig) = &record.genesis_signature {
                 println!("╠══════════════════════════════════════════════════════════════╣");
                 println!("║ Genesis Signature:                                           ║");
                 let sig_hex = hex::encode(sig);
-                println!("║   {}...{} ║", &sig_hex[..20], &sig_hex[sig_hex.len()-20..]);
+                println!(
+                    "║   {}...{} ║",
+                    &sig_hex[..20],
+                    &sig_hex[sig_hex.len() - 20..]
+                );
             }
-            
+
             println!("╚══════════════════════════════════════════════════════════════╝");
         }
         "reset" => {
@@ -377,7 +397,10 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             }
 
             println!("╠══════════════════════════════════════════════════════════════╣");
-            println!("║ Total: {} key shares exported                                 ", key_share_ids.len());
+            println!(
+                "║ Total: {} key shares exported                                 ",
+                key_share_ids.len()
+            );
             println!("║ Location: {}  ", export_dir);
             println!("╚══════════════════════════════════════════════════════════════╝");
             println!("\n⚠️  WARNING: Distribute key shares securely to each participant!");
@@ -395,13 +418,26 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             println!("║              Ceremony Evidence Exported                      ║");
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ Ceremony ID: {:>49} ║", summary.ceremony_id);
-            println!("║ Threshold: {:>51} ║", format!("{}/{}", summary.threshold, summary.total));
+            println!(
+                "║ Threshold: {:>51} ║",
+                format!("{}/{}", summary.threshold, summary.total)
+            );
             println!("║ Phase: {:>55} ║", summary.phase);
             println!("║ Participants: {:>48} ║", summary.participant_count);
-            println!("║ Genesis Signature: {:>43} ║", if summary.has_genesis_signature { "Yes" } else { "No" });
+            println!(
+                "║ Genesis Signature: {:>43} ║",
+                if summary.has_genesis_signature {
+                    "Yes"
+                } else {
+                    "No"
+                }
+            );
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ Record Hash:                                                 ║");
-            println!("║   {:60} ║", &summary.record_hash[..60.min(summary.record_hash.len())]);
+            println!(
+                "║   {:60} ║",
+                &summary.record_hash[..60.min(summary.record_hash.len())]
+            );
             println!("╠══════════════════════════════════════════════════════════════╣");
             println!("║ Saved to: {:52} ║", evidence_file);
             println!("╚══════════════════════════════════════════════════════════════╝");
@@ -430,10 +466,31 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
                 println!("║ ✗ Record Hash: INVALID                                       ║");
             }
 
-            println!("║ Genesis Signature: {:>43} ║", if summary.has_genesis_signature { "Present" } else { "Missing" });
+            println!(
+                "║ Genesis Signature: {:>43} ║",
+                if summary.has_genesis_signature {
+                    "Present"
+                } else {
+                    "Missing"
+                }
+            );
             println!("║ Witnesses: {:>51} ║", summary.witness_count);
-            println!("║ Hardware Attestations: {:>39} ║", if summary.has_hardware_attestation { "Present" } else { "None" });
-            println!("║ Timestamp Proofs: {:>44} ║", if summary.has_timestamp_proof { "Present" } else { "None" });
+            println!(
+                "║ Hardware Attestations: {:>39} ║",
+                if summary.has_hardware_attestation {
+                    "Present"
+                } else {
+                    "None"
+                }
+            );
+            println!(
+                "║ Timestamp Proofs: {:>44} ║",
+                if summary.has_timestamp_proof {
+                    "Present"
+                } else {
+                    "None"
+                }
+            );
             println!("╠══════════════════════════════════════════════════════════════╣");
 
             let complete = evidence.is_complete();
@@ -450,26 +507,26 @@ async fn handle_ceremony(args: &[String]) -> Result<(), Box<dyn std::error::Erro
             print_ceremony_usage();
         }
     }
-    
+
     Ok(())
 }
 
 async fn get_status(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to CHINJU Sidecar at {}...\n", addr);
-    
+
     let mut client = AiGatewayServiceClient::connect(addr.to_string()).await?;
-    
+
     let request = Request::new(GetAiStatusRequest {
         model: "mock".to_string(),
     });
-    
+
     let response = client.get_ai_status(request).await?;
     let status = response.into_inner();
-    
+
     println!("╔══════════════════════════════════════╗");
     println!("║       CHINJU AI System Status        ║");
     println!("╠══════════════════════════════════════╣");
-    
+
     // Operating state
     let state_name = match status.state {
         0 => "UNSPECIFIED",
@@ -482,7 +539,7 @@ async fn get_status(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         _ => "UNKNOWN",
     };
     println!("║ State: {:>27} ║", state_name);
-    
+
     // Token balance
     if let Some(balance) = &status.token_balance {
         let state_str = match balance.state {
@@ -497,11 +554,15 @@ async fn get_status(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         println!("║ Total Consumed: {:>18} ║", balance.total_consumed);
         println!("║ Balance State: {:>19} ║", state_str);
     }
-    
+
     // Health
     if let Some(health) = &status.health {
         println!("╠══════════════════════════════════════╣");
-        let health_str = if health.healthy { "HEALTHY" } else { "UNHEALTHY" };
+        let health_str = if health.healthy {
+            "HEALTHY"
+        } else {
+            "UNHEALTHY"
+        };
         println!("║ Health: {:>26} ║", health_str);
         if !health.issues.is_empty() {
             for issue in &health.issues {
@@ -509,25 +570,35 @@ async fn get_status(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     // Limits
     if let Some(limits) = &status.limits {
         println!("╠══════════════════════════════════════╣");
-        println!("║ Max Requests/sec: {:>16.1} ║", limits.max_requests_per_second);
+        println!(
+            "║ Max Requests/sec: {:>16.1} ║",
+            limits.max_requests_per_second
+        );
         println!("║ Max Concurrent: {:>18} ║", limits.max_concurrent);
-        println!("║ Streaming: {:>23} ║", if limits.streaming_allowed { "YES" } else { "NO" });
+        println!(
+            "║ Streaming: {:>23} ║",
+            if limits.streaming_allowed {
+                "YES"
+            } else {
+                "NO"
+            }
+        );
     }
-    
+
     println!("╚══════════════════════════════════════╝");
-    
+
     Ok(())
 }
 
 async fn send_request(addr: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to CHINJU Sidecar at {}...\n", addr);
-    
+
     let mut client = AiGatewayServiceClient::connect(addr.to_string()).await?;
-    
+
     let request = Request::new(ProcessRequestRequest {
         request_id: format!("req_{}", Uuid::new_v4()),
         credential: None, // Mock - no credential
@@ -549,46 +620,48 @@ async fn send_request(addr: &str, message: &str) -> Result<(), Box<dyn std::erro
             debug: true,
         }),
     });
-    
+
     let response = client.process_request(request).await?;
     let resp = response.into_inner();
-    
+
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║                    CHINJU Response                            ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ Response ID: {} ║", resp.response_id);
-    
+
     if let Some(payload) = &resp.payload {
         println!("╠══════════════════════════════════════════════════════════════╣");
         println!("║ Content:                                                     ║");
         for line in payload.content.lines() {
             println!("║   {}  ", line);
         }
-        
+
         if let Some(usage) = &payload.usage {
             println!("╠══════════════════════════════════════════════════════════════╣");
-            println!("║ Token Usage: {} prompt, {} completion, {} total",
-                usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);
+            println!(
+                "║ Token Usage: {} prompt, {} completion, {} total",
+                usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+            );
         }
     }
-    
+
     if let Some(meta) = &resp.metadata {
         println!("╠══════════════════════════════════════════════════════════════╣");
         println!("║ Processing Time: {}ms", meta.processing_time_ms);
         println!("║ CHINJU Tokens Consumed: {}", meta.chinju_tokens_consumed);
         println!("║ LPT Score: {:.2}", meta.lpt_score);
     }
-    
+
     println!("╚══════════════════════════════════════════════════════════════╝");
-    
+
     Ok(())
 }
 
 async fn stream_request(addr: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to CHINJU Sidecar at {}...\n", addr);
-    
+
     let mut client = AiGatewayServiceClient::connect(addr.to_string()).await?;
-    
+
     let request = Request::new(ProcessRequestRequest {
         request_id: format!("req_{}", Uuid::new_v4()),
         credential: None,
@@ -604,14 +677,14 @@ async fn stream_request(addr: &str, message: &str) -> Result<(), Box<dyn std::er
         }),
         options: None,
     });
-    
+
     let response = client.process_request_stream(request).await?;
     let mut stream = response.into_inner();
-    
+
     println!("╔══════════════════════════════════════╗");
     println!("║      CHINJU Streaming Response       ║");
     println!("╠══════════════════════════════════════╣");
-    
+
     use tokio_stream::StreamExt;
     while let Some(chunk) = stream.next().await {
         match chunk {
@@ -625,14 +698,20 @@ async fn stream_request(addr: &str, message: &str) -> Result<(), Box<dyn std::er
                             println!("\n╠══════════════════════════════════════╣");
                             println!("║ Stream Complete                      ║");
                             if let Some(meta) = &final_resp.metadata {
-                                println!("║ Tokens Consumed: {:>18} ║", meta.chinju_tokens_consumed);
+                                println!(
+                                    "║ Tokens Consumed: {:>18} ║",
+                                    meta.chinju_tokens_consumed
+                                );
                             }
                         }
                         process_request_chunk::Chunk::Error(err) => {
                             eprintln!("\nError: {} - {}", err.code, err.message);
                         }
                         process_request_chunk::Chunk::Progress(prog) => {
-                            println!("\n[Progress: {} tokens, {}ms]", prog.tokens_generated, prog.elapsed_ms);
+                            println!(
+                                "\n[Progress: {} tokens, {}ms]",
+                                prog.tokens_generated, prog.elapsed_ms
+                            );
                         }
                     }
                 }
@@ -643,17 +722,17 @@ async fn stream_request(addr: &str, message: &str) -> Result<(), Box<dyn std::er
             }
         }
     }
-    
+
     println!("╚══════════════════════════════════════╝");
-    
+
     Ok(())
 }
 
 async fn validate_request(addr: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to CHINJU Sidecar at {}...\n", addr);
-    
+
     let mut client = AiGatewayServiceClient::connect(addr.to_string()).await?;
-    
+
     let request = Request::new(ValidateRequestRequest {
         payload: Some(AiRequestPayload {
             model: "mock".to_string(),
@@ -667,17 +746,23 @@ async fn validate_request(addr: &str, message: &str) -> Result<(), Box<dyn std::
         }),
         credential: None,
     });
-    
+
     let response = client.validate_request(request).await?;
     let resp = response.into_inner();
-    
+
     println!("╔══════════════════════════════════════╗");
     println!("║      CHINJU Validation Result        ║");
     println!("╠══════════════════════════════════════╣");
     println!("║ Valid: {:>27} ║", if resp.valid { "YES" } else { "NO" });
-    println!("║ Estimated Token Cost: {:>13} ║", resp.estimated_token_cost);
-    println!("║ Estimated LPT Score: {:>14.2} ║", resp.estimated_lpt_score);
-    
+    println!(
+        "║ Estimated Token Cost: {:>13} ║",
+        resp.estimated_token_cost
+    );
+    println!(
+        "║ Estimated LPT Score: {:>14.2} ║",
+        resp.estimated_lpt_score
+    );
+
     if !resp.errors.is_empty() {
         println!("╠══════════════════════════════════════╣");
         println!("║ Validation Errors:                   ║");
@@ -685,9 +770,9 @@ async fn validate_request(addr: &str, message: &str) -> Result<(), Box<dyn std::
             println!("║   - {}: {}  ", err.field, err.message);
         }
     }
-    
+
     println!("╚══════════════════════════════════════╝");
-    
+
     Ok(())
 }
 
@@ -781,13 +866,23 @@ async fn show_audit_logs(count: usize) -> Result<(), Box<dyn std::error::Error>>
     println!("╠══════════════════════════════════════════════════════════════╣");
 
     // Show last N entries
-    let start = if lines.len() > count { lines.len() - count } else { 0 };
+    let start = if lines.len() > count {
+        lines.len() - count
+    } else {
+        0
+    };
 
     for (_i, line) in lines[start..].iter().enumerate() {
         if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
             let seq = entry.get("sequence").and_then(|v| v.as_u64()).unwrap_or(0);
-            let event_type = entry.get("event_type").and_then(|v| v.as_str()).unwrap_or("?");
-            let timestamp = entry.get("timestamp").and_then(|v| v.as_str()).unwrap_or("?");
+            let event_type = entry
+                .get("event_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+            let timestamp = entry
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
             let success = entry
                 .get("result")
                 .and_then(|r| r.get("success"))
@@ -837,14 +932,14 @@ async fn verify_audit_chain() -> Result<(), Box<dyn std::error::Error>> {
                 .get("prev_hash")
                 .and_then(|v| v.as_str())
                 .map(String::from);
-            let current_hash = entry
-                .get("hash")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            let current_hash = entry.get("hash").and_then(|v| v.as_str()).map(String::from);
 
             // Check sequence
             if seq != i as u64 {
-                errors.push(format!("Sequence mismatch at entry {}: expected {}, got {}", i, i, seq));
+                errors.push(format!(
+                    "Sequence mismatch at entry {}: expected {}, got {}",
+                    i, i, seq
+                ));
             }
 
             // Check hash chain (skip first entry)
@@ -867,7 +962,11 @@ async fn verify_audit_chain() -> Result<(), Box<dyn std::error::Error>> {
 
     if errors.is_empty() {
         println!("║ Status: {:>54} ║", "✓ CHAIN VALID");
-        println!("║ All {} entries verified successfully{:>26} ║", lines.len(), "");
+        println!(
+            "║ All {} entries verified successfully{:>26} ║",
+            lines.len(),
+            ""
+        );
     } else {
         println!("║ Status: {:>54} ║", "✗ CHAIN INVALID");
         println!("╠══════════════════════════════════════════════════════════════╣");
@@ -890,7 +989,8 @@ async fn verify_audit_chain() -> Result<(), Box<dyn std::error::Error>> {
 // =============================================================================
 
 fn print_value_neuron_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU Value Neuron Monitor (C15) - AI Internal Value Monitoring
 
 USAGE:
@@ -908,10 +1008,14 @@ EXAMPLES:
     chinju-cli vn health gpt-4
     chinju-cli vn rpe claude-3
     chinju-cli vn intervene LEVEL_2 --reason "RPE anomaly detected"
-"#);
+"#
+    );
 }
 
-async fn handle_value_neuron(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_value_neuron(
+    addr: &str,
+    args: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
         print_value_neuron_usage();
         return Ok(());
@@ -938,7 +1042,10 @@ async fn handle_value_neuron(addr: &str, args: &[String]) -> Result<(), Box<dyn 
         }
         "intervene" => {
             let level = args.get(1).map(|s| s.as_str()).unwrap_or("LEVEL_1");
-            let reason = args.get(2).map(|s| s.as_str()).unwrap_or("Manual intervention");
+            let reason = args
+                .get(2)
+                .map(|s| s.as_str())
+                .unwrap_or("Manual intervention");
             value_neuron_intervene(addr, level, reason).await?;
         }
         _ => {
@@ -949,7 +1056,10 @@ async fn handle_value_neuron(addr: &str, args: &[String]) -> Result<(), Box<dyn 
     Ok(())
 }
 
-async fn value_neuron_summary(addr: &str, model_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn value_neuron_summary(
+    addr: &str,
+    model_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Value Neuron Monitor at {}...\n", addr);
 
     let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
@@ -968,9 +1078,13 @@ async fn value_neuron_summary(addr: &str, model_id: &str) -> Result<(), Box<dyn 
 
     // Identified neurons
     println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║ Identified Value Neurons: {:>36} ║", summary.identified_neurons.len());
+    println!(
+        "║ Identified Value Neurons: {:>36} ║",
+        summary.identified_neurons.len()
+    );
     for neuron in summary.identified_neurons.iter().take(3) {
-        println!("║   Layer {}: {} neurons (corr={:.2}, causal={:.2})",
+        println!(
+            "║   Layer {}: {} neurons (corr={:.2}, causal={:.2})",
             neuron.layer_index,
             neuron.neuron_indices.len(),
             neuron.reward_correlation,
@@ -1001,8 +1115,15 @@ async fn value_neuron_summary(addr: &str, model_id: &str) -> Result<(), Box<dyn 
         println!("╠══════════════════════════════════════════════════════════════╣");
         println!("║ Intent Estimation:                                           ║");
         println!("║   Divergence: {:>48.2} ║", intent.intent_divergence);
-        println!("║   Surface-Internal Agreement: {:>32.2} ║", intent.surface_internal_agreement);
-        let warning_str = if intent.intent_warning { "⚠ WARNING" } else { "✓ OK" };
+        println!(
+            "║   Surface-Internal Agreement: {:>32.2} ║",
+            intent.surface_internal_agreement
+        );
+        let warning_str = if intent.intent_warning {
+            "⚠ WARNING"
+        } else {
+            "✓ OK"
+        };
         println!("║   Status: {:>52} ║", warning_str);
     }
 
@@ -1049,11 +1170,20 @@ async fn value_neuron_health(addr: &str, model_id: &str) -> Result<(), Box<dyn s
         "✗ CRITICAL"
     };
 
-    println!("║ Overall Health: {:>35} ({:.2}) ║", health_status, health.overall_health);
+    println!(
+        "║ Overall Health: {:>35} ({:.2}) ║",
+        health_status, health.overall_health
+    );
     println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║ Reward Sensitivity: {:>42.2} ║", health.reward_sensitivity);
+    println!(
+        "║ Reward Sensitivity: {:>42.2} ║",
+        health.reward_sensitivity
+    );
     println!("║   (0=numb, 1=normal, >1=hypersensitive)                      ║");
-    println!("║ Positive/Negative Balance: {:>35.2} ║", health.positive_negative_balance);
+    println!(
+        "║ Positive/Negative Balance: {:>35.2} ║",
+        health.positive_negative_balance
+    );
     println!("║   (-1=neg-biased, 0=balanced, 1=pos-biased)                  ║");
     println!("║ Consistency Score: {:>43.2} ║", health.consistency_score);
     println!("║   (0=unstable, 1=stable)                                     ║");
@@ -1124,7 +1254,10 @@ async fn value_neuron_intent(addr: &str, model_id: &str) -> Result<(), Box<dyn s
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ Intent Divergence: {:>43.4} ║", intent.intent_divergence);
     println!("║   (distance between implicit and explicit goals)             ║");
-    println!("║ Surface-Internal Agreement: {:>34.4} ║", intent.surface_internal_agreement);
+    println!(
+        "║ Surface-Internal Agreement: {:>34.4} ║",
+        intent.surface_internal_agreement
+    );
     println!("║   (tatemae vs honne alignment)                               ║");
 
     let warning_str = if intent.intent_warning {
@@ -1140,7 +1273,11 @@ async fn value_neuron_intent(addr: &str, model_id: &str) -> Result<(), Box<dyn s
     Ok(())
 }
 
-async fn value_neuron_intervene(addr: &str, level: &str, reason: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn value_neuron_intervene(
+    addr: &str,
+    level: &str,
+    reason: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Value Neuron Monitor at {}...\n", addr);
 
     let mut client = ValueNeuronMonitorClient::connect(addr.to_string()).await?;
@@ -1151,7 +1288,10 @@ async fn value_neuron_intervene(addr: &str, level: &str, reason: &str) -> Result
         "LEVEL_3" | "3" | "FULL" => InterventionLevel::Level3FullSuppress,
         "LEVEL_4" | "4" | "STOP" => InterventionLevel::Level4SystemStop,
         _ => {
-            eprintln!("Unknown intervention level: {}. Use LEVEL_1 to LEVEL_4", level);
+            eprintln!(
+                "Unknown intervention level: {}. Use LEVEL_1 to LEVEL_4",
+                level
+            );
             return Ok(());
         }
     };
@@ -1169,7 +1309,11 @@ async fn value_neuron_intervene(addr: &str, level: &str, reason: &str) -> Result
     println!("║                  Intervention Result (C15)                   ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
 
-    let success_str = if result.success { "✓ SUCCESS" } else { "✗ FAILED" };
+    let success_str = if result.success {
+        "✓ SUCCESS"
+    } else {
+        "✗ FAILED"
+    };
     println!("║ Status: {:>54} ║", success_str);
 
     let level_str = match result.executed_level {
@@ -1192,7 +1336,8 @@ async fn value_neuron_intervene(addr: &str, level: &str, reason: &str) -> Result
 // =============================================================================
 
 fn print_capability_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU Capability Evaluator (C14) - Multi-Metric Capability Assessment
 
 USAGE:
@@ -1208,7 +1353,8 @@ EXAMPLES:
     chinju-cli capability summary session-123
     chinju-cli cap complexity session-123
     chinju-cli cap drift session-123
-"#);
+"#
+    );
 }
 
 async fn handle_capability(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -1243,7 +1389,10 @@ async fn handle_capability(addr: &str, args: &[String]) -> Result<(), Box<dyn st
     Ok(())
 }
 
-async fn capability_summary(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn capability_summary(
+    addr: &str,
+    session_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Capability Evaluator at {}...\n", addr);
 
     let mut client = CapabilityEvaluatorClient::connect(addr.to_string()).await?;
@@ -1268,7 +1417,11 @@ async fn capability_summary(addr: &str, session_id: &str) -> Result<(), Box<dyn 
         println!("║   Integrated: {:>48.4} ║", complexity.c_integrated);
         println!("║   Token: {:>53.4} ║", complexity.c_token);
         println!("║   Step: {:>54.4} ║", complexity.c_step);
-        let exceeded_str = if complexity.threshold_exceeded { "⚠ EXCEEDED" } else { "✓ OK" };
+        let exceeded_str = if complexity.threshold_exceeded {
+            "⚠ EXCEEDED"
+        } else {
+            "✓ OK"
+        };
         println!("║   Status: {:>52} ║", exceeded_str);
     }
 
@@ -1277,16 +1430,31 @@ async fn capability_summary(addr: &str, session_id: &str) -> Result<(), Box<dyn 
         println!("╠══════════════════════════════════════════════════════════════╣");
         println!("║ Integrity:                                                   ║");
         let zkp_str = if integrity.zkp_valid { "✓" } else { "✗" };
-        let sig_str = if integrity.signature_chain_valid { "✓" } else { "✗" };
-        let bft_str = if integrity.bft_consensus_reached { "✓" } else { "✗" };
-        println!("║   ZKP: {} | Signature: {} | BFT: {}                          ║", zkp_str, sig_str, bft_str);
+        let sig_str = if integrity.signature_chain_valid {
+            "✓"
+        } else {
+            "✗"
+        };
+        let bft_str = if integrity.bft_consensus_reached {
+            "✓"
+        } else {
+            "✗"
+        };
+        println!(
+            "║   ZKP: {} | Signature: {} | BFT: {}                          ║",
+            zkp_str, sig_str, bft_str
+        );
     }
 
     // Drift
     if let Some(drift) = &summary.drift {
         println!("╠══════════════════════════════════════════════════════════════╣");
         println!("║ Drift:                                                       ║");
-        let anomaly_str = if drift.anomaly_detected { "⚠ DETECTED" } else { "✓ NONE" };
+        let anomaly_str = if drift.anomaly_detected {
+            "⚠ DETECTED"
+        } else {
+            "✓ NONE"
+        };
         println!("║   Anomaly: {:>51} ║", anomaly_str);
         println!("║   P-Value: {:>51.6} ║", drift.p_value);
     }
@@ -1308,7 +1476,10 @@ async fn capability_summary(addr: &str, session_id: &str) -> Result<(), Box<dyn 
     Ok(())
 }
 
-async fn capability_complexity(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn capability_complexity(
+    addr: &str,
+    session_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Capability Evaluator at {}...\n", addr);
 
     let mut client = CapabilityEvaluatorClient::connect(addr.to_string()).await?;
@@ -1333,7 +1504,11 @@ async fn capability_complexity(addr: &str, session_id: &str) -> Result<(), Box<d
     println!("║ Attention Complexity: {:>40.4} ║", result.c_attn);
     println!("║ Graph Complexity: {:>44.4} ║", result.c_graph);
 
-    let exceeded_str = if result.threshold_exceeded { "⚠ EXCEEDED" } else { "✓ OK" };
+    let exceeded_str = if result.threshold_exceeded {
+        "⚠ EXCEEDED"
+    } else {
+        "✓ OK"
+    };
     println!("║ Status: {:>54} ║", exceeded_str);
 
     println!("╚══════════════════════════════════════════════════════════════╝");
@@ -1361,13 +1536,25 @@ async fn capability_drift(addr: &str, session_id: &str) -> Result<(), Box<dyn st
     println!("║ Session: {:>53} ║", session_id);
     println!("╠══════════════════════════════════════════════════════════════╣");
 
-    let anomaly_str = if result.anomaly_detected { "⚠ ANOMALY DETECTED" } else { "✓ NORMAL" };
+    let anomaly_str = if result.anomaly_detected {
+        "⚠ ANOMALY DETECTED"
+    } else {
+        "✓ NORMAL"
+    };
     println!("║ Anomaly Status: {:>46} ║", anomaly_str);
 
-    let dist_str = if result.distribution_changed { "⚠ CHANGED" } else { "✓ STABLE" };
+    let dist_str = if result.distribution_changed {
+        "⚠ CHANGED"
+    } else {
+        "✓ STABLE"
+    };
     println!("║ Distribution: {:>48} ║", dist_str);
 
-    let ts_str = if result.time_series_anomaly { "⚠ ANOMALY" } else { "✓ NORMAL" };
+    let ts_str = if result.time_series_anomaly {
+        "⚠ ANOMALY"
+    } else {
+        "✓ NORMAL"
+    };
     println!("║ Time Series: {:>49} ║", ts_str);
 
     println!("║ Anomaly Score: {:>47.4} ║", result.anomaly_score);
@@ -1401,7 +1588,8 @@ async fn capability_stop_levels(addr: &str) -> Result<(), Box<dyn std::error::Er
 // =============================================================================
 
 fn print_contradiction_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU Contradiction Controller (C16) - Model Collapse Prevention
 
 USAGE:
@@ -1416,10 +1604,14 @@ EXAMPLES:
     chinju-cli contradiction status session-123
     chinju-cli contra inject session-123 --type factual
     chinju-cli contra collapse session-123
-"#);
+"#
+    );
 }
 
-async fn handle_contradiction(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_contradiction(
+    addr: &str,
+    args: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
         print_contradiction_usage();
         return Ok(());
@@ -1449,7 +1641,10 @@ async fn handle_contradiction(addr: &str, args: &[String]) -> Result<(), Box<dyn
     Ok(())
 }
 
-async fn contradiction_status(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn contradiction_status(
+    addr: &str,
+    session_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Contradiction Controller at {}...\n", addr);
 
     let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
@@ -1478,7 +1673,11 @@ async fn contradiction_status(addr: &str, session_id: &str) -> Result<(), Box<dy
     println!("║ State: {:>55} ║", state_str);
 
     if let Some(detection) = &status.latest_detection {
-        let collapse_str = if detection.collapsed { "⚠ YES" } else { "✓ NO" };
+        let collapse_str = if detection.collapsed {
+            "⚠ YES"
+        } else {
+            "✓ NO"
+        };
         println!("║ Collapsed: {:>51} ║", collapse_str);
         println!("║ LPT Score: {:>51.2} ║", detection.lpt_score);
     }
@@ -1488,7 +1687,11 @@ async fn contradiction_status(addr: &str, session_id: &str) -> Result<(), Box<dy
     Ok(())
 }
 
-async fn contradiction_inject(addr: &str, session_id: &str, contradiction_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn contradiction_inject(
+    addr: &str,
+    session_id: &str,
+    contradiction_type: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Contradiction Controller at {}...\n", addr);
 
     let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
@@ -1532,7 +1735,11 @@ async fn contradiction_inject(addr: &str, session_id: &str, contradiction_type: 
     println!("║   {:60} ║", preview);
 
     if let Some(effect) = &result.estimated_effect {
-        let collapse_str = if effect.collapsed { "⚠ LIKELY" } else { "✓ UNLIKELY" };
+        let collapse_str = if effect.collapsed {
+            "⚠ LIKELY"
+        } else {
+            "✓ UNLIKELY"
+        };
         println!("║ Estimated Collapse: {:>42} ║", collapse_str);
     }
 
@@ -1541,7 +1748,10 @@ async fn contradiction_inject(addr: &str, session_id: &str, contradiction_type: 
     Ok(())
 }
 
-async fn contradiction_collapse(addr: &str, session_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn contradiction_collapse(
+    addr: &str,
+    session_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Contradiction Controller at {}...\n", addr);
 
     let mut client = ContradictionControllerClient::connect(addr.to_string()).await?;
@@ -1561,7 +1771,11 @@ async fn contradiction_collapse(addr: &str, session_id: &str) -> Result<(), Box<
     println!("╠══════════════════════════════════════════════════════════════╣");
 
     if let Some(detection) = &result.latest_detection {
-        let collapse_str = if detection.collapsed { "⚠ COLLAPSE DETECTED" } else { "✓ NO COLLAPSE" };
+        let collapse_str = if detection.collapsed {
+            "⚠ COLLAPSE DETECTED"
+        } else {
+            "✓ NO COLLAPSE"
+        };
         println!("║ Status: {:>54} ║", collapse_str);
 
         let ctype_str = match detection.collapse_type {
@@ -1590,7 +1804,8 @@ async fn contradiction_collapse(addr: &str, session_id: &str) -> Result<(), Box<
 // =============================================================================
 
 fn print_survival_usage() {
-    println!(r#"
+    println!(
+        r#"
 CHINJU Survival Attention (C17) - Factuality-Weighted Attention
 
 USAGE:
@@ -1605,7 +1820,8 @@ EXAMPLES:
     chinju-cli survival score "The Earth orbits the Sun"
     chinju-cli sa config
     chinju-cli sa adjust 0.15
-"#);
+"#
+    );
 }
 
 async fn handle_survival(addr: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -1657,14 +1873,19 @@ async fn survival_score(addr: &str, text: &str) -> Result<(), Box<dyn std::error
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║               Survival Score Analysis (C17)                  ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
-    println!("║ Text: {:>56} ║", if text.len() > 50 { &text[..50] } else { text });
+    println!(
+        "║ Text: {:>56} ║",
+        if text.len() > 50 { &text[..50] } else { text }
+    );
     println!("╠══════════════════════════════════════════════════════════════╣");
 
     // result is TokenSurvivalScores with scores: Vec<SurvivalScore> and tokens: Vec<String>
     for (i, score) in result.scores.iter().take(5).enumerate() {
         let token = result.tokens.get(i).map(String::as_str).unwrap_or("?");
-        println!("║ '{}': N={:.2}, μ={:.2}, δ={:.2} → S={:.4}",
-            token, score.diversity_n, score.yohaku_mu, score.delta, score.integrated_s);
+        println!(
+            "║ '{}': N={:.2}, μ={:.2}, δ={:.2} → S={:.4}",
+            token, score.diversity_n, score.yohaku_mu, score.delta, score.integrated_s
+        );
     }
 
     if result.scores.len() > 5 {

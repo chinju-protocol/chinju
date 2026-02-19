@@ -207,7 +207,9 @@ pub enum ChainError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::audit::types::{Actor, AuditDetails, AuditEventType, AuditResult, Resource};
+    use crate::services::audit::types::{
+        Actor, AuditDetails, AuditEventType, AuditResult, Resource,
+    };
 
     fn create_test_entry() -> AuditLogEntry {
         AuditLogEntry::builder()

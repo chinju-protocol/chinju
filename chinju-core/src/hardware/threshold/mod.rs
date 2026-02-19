@@ -29,6 +29,9 @@ mod frost;
 mod key_share;
 
 pub use ceremony::{Ceremony, CeremonyPhase, CeremonyRecord, ParticipantRecord};
-pub use evidence::{CeremonyEvidence, EvidenceSummary, TimestampProof, TimestampProofType, VideoRecordingHash, WitnessRecord};
+pub use evidence::{
+    CeremonyEvidence, EvidenceSummary, TimestampProof, TimestampProofType, VideoRecordingHash,
+    WitnessRecord,
+};
 pub use frost::{FrostCoordinator, FrostError, FrostParticipant};
 pub use key_share::{KeyShare, KeyShareStore};

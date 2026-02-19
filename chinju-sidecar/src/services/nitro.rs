@@ -165,10 +165,13 @@ impl NitroService {
 
         let cid = self.config.cid.ok_or("Enclave CID not configured")?;
 
-        info!("Connecting to Nitro Enclave (CID={}, port={})", cid, self.config.port);
+        info!(
+            "Connecting to Nitro Enclave (CID={}, port={})",
+            cid, self.config.port
+        );
 
-        let vsock_config = VsockConfig::new(cid, self.config.port)
-            .with_timeout(self.config.timeout_ms);
+        let vsock_config =
+            VsockConfig::new(cid, self.config.port).with_timeout(self.config.timeout_ms);
 
         match NitroEnclaveClient::new(vsock_config) {
             Ok(client) => {
@@ -309,7 +312,9 @@ impl NitroService {
         user_data: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, String> {
         if let Some(ref client) = self.client {
-            client.get_attestation(challenge, user_data).map_err(|e| e.to_string())
+            client
+                .get_attestation(challenge, user_data)
+                .map_err(|e| e.to_string())
         } else {
             Err("Not connected".to_string())
         }
@@ -333,7 +338,9 @@ impl NitroService {
         label: &str,
     ) -> Result<(String, Vec<u8>), String> {
         if let Some(ref client) = self.client {
-            client.generate_key_pair(algorithm, label).map_err(|e| e.to_string())
+            client
+                .generate_key_pair(algorithm, label)
+                .map_err(|e| e.to_string())
         } else {
             Err("Not connected".to_string())
         }

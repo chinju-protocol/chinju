@@ -78,9 +78,9 @@ impl SoftHsm {
             // OID for Ed25519: 1.3.101.112
             KeyAlgorithm::Ed25519 => Ok(vec![0x06, 0x03, 0x2b, 0x65, 0x70]),
             // OID for secp256r1 (P-256): 1.2.840.10045.3.1.7
-            KeyAlgorithm::EcdsaP256 => {
-                Ok(vec![0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07])
-            }
+            KeyAlgorithm::EcdsaP256 => Ok(vec![
+                0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07,
+            ]),
             // OID for secp384r1 (P-384): 1.3.132.0.34
             KeyAlgorithm::EcdsaP384 => Ok(vec![0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22]),
             _ => Err(HardwareError::NotSupported),
@@ -191,11 +191,7 @@ impl HardwareSecurityModule for SoftHsm {
                 let (pub_handle, priv_handle) = self
                     .session
                     .session()
-                    .generate_key_pair(
-                        &Mechanism::RsaPkcsKeyPairGen,
-                        &pub_template,
-                        &priv_template,
-                    )
+                    .generate_key_pair(&Mechanism::RsaPkcsKeyPairGen, &pub_template, &priv_template)
                     .map_err(|e| {
                         HardwareError::CommunicationError(format!(
                             "Failed to generate RSA key pair: {}",
@@ -219,7 +215,7 @@ impl HardwareSecurityModule for SoftHsm {
             let cache = self.key_cache.read().unwrap();
             cache
                 .get(&key_handle.0)
-                .map(|(_, priv)| *priv)
+                .map(|(_, private_key_handle)| *private_key_handle)
                 .ok_or_else(|| HardwareError::KeyNotFound(key_handle.0.clone()))?
         };
 
@@ -257,9 +253,7 @@ impl HardwareSecurityModule for SoftHsm {
             .session
             .session()
             .sign(&mechanism, priv_handle, data)
-            .map_err(|e| {
-                HardwareError::CommunicationError(format!("Failed to sign: {}", e))
-            })?;
+            .map_err(|e| HardwareError::CommunicationError(format!("Failed to sign: {}", e)))?;
 
         let public_key = self.get_public_key(key_handle)?;
 
@@ -392,7 +386,9 @@ mod tests {
         let signature = hsm.sign(&key, data).expect("Failed to sign");
 
         // Verify
-        let valid = hsm.verify(&key, data, &signature).expect("Failed to verify");
+        let valid = hsm
+            .verify(&key, data, &signature)
+            .expect("Failed to verify");
         assert!(valid);
 
         // Clean up

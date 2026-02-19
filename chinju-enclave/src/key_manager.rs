@@ -12,6 +12,7 @@ use std::sync::{Arc, RwLock};
 use tracing::{debug, info};
 
 /// Key entry in the key store
+#[allow(dead_code)]
 struct KeyEntry {
     /// Key algorithm
     algorithm: String,
@@ -161,8 +162,8 @@ impl KeyManager {
 
         // Derive key from sealing key and nonce
         let mut hasher = Sha256::new();
-        hasher.update(&self.sealing_key);
-        hasher.update(&nonce);
+        hasher.update(self.sealing_key);
+        hasher.update(nonce);
         let derived_key = hasher.finalize();
 
         // XOR encrypt (simplified; use AES-GCM in production)
@@ -189,7 +190,7 @@ impl KeyManager {
 
         // Derive key from sealing key and nonce
         let mut hasher = Sha256::new();
-        hasher.update(&self.sealing_key);
+        hasher.update(self.sealing_key);
         hasher.update(nonce);
         let derived_key = hasher.finalize();
 
@@ -199,7 +200,11 @@ impl KeyManager {
             data.push(byte ^ derived_key[i % 32]);
         }
 
-        debug!("Unsealed {} bytes -> {} bytes", sealed_data.len(), data.len());
+        debug!(
+            "Unsealed {} bytes -> {} bytes",
+            sealed_data.len(),
+            data.len()
+        );
 
         Ok(data)
     }
@@ -234,6 +239,7 @@ impl Clone for KeyManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::VerifyingKey;
 
     #[test]
     fn test_key_generation() {

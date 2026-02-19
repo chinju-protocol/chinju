@@ -3,20 +3,19 @@
 //! This module provides factory functions to create hardware implementations
 //! based on configuration and available features.
 
+use crate::hardware::dead_mans_switch::{DeadMansSwitch, SoftDeadMansSwitch};
+#[cfg(all(feature = "tpm", target_os = "linux"))]
+use crate::hardware::tpm::{TpmConfig, TpmDeadMansSwitch};
 use crate::hardware::traits::{
     HardwareError, HardwareSecurityModule, ImmutableStorage, RandomSource,
 };
-use crate::hardware::dead_mans_switch::{
-    DeadMansSwitch, SoftDeadMansSwitch,
-};
-#[cfg(all(feature = "tpm", target_os = "linux"))]
-use crate::hardware::tpm::{TpmConfig, TpmDeadMansSwitch};
 use crate::types::TrustLevel;
 
 /// HSM backend configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum HsmBackend {
     /// Mock implementation for testing (L0)
+    #[default]
     Mock,
     /// SoftHSM2 via PKCS#11 (L1)
     #[cfg(feature = "softhsm")]
@@ -62,16 +61,11 @@ pub enum HsmBackend {
     },
 }
 
-impl Default for HsmBackend {
-    fn default() -> Self {
-        Self::Mock
-    }
-}
-
 /// Random source backend configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum RandomBackend {
     /// Mock implementation using system CSPRNG
+    #[default]
     Mock,
     /// System /dev/urandom
     System,
@@ -80,28 +74,17 @@ pub enum RandomBackend {
     Trng,
 }
 
-impl Default for RandomBackend {
-    fn default() -> Self {
-        Self::Mock
-    }
-}
-
 /// OTP storage backend configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum OtpBackend {
     /// Mock in-memory implementation
+    #[default]
     Mock,
     /// File-based persistent storage
     File { path: String },
     /// TPM-based storage (Linux only)
     #[cfg(all(feature = "tpm", target_os = "linux"))]
     Tpm,
-}
-
-impl Default for OtpBackend {
-    fn default() -> Self {
-        Self::Mock
-    }
 }
 
 /// Hardware provider configuration
@@ -133,9 +116,8 @@ impl HardwareConfig {
             "mock" => HsmBackend::Mock,
             #[cfg(feature = "softhsm")]
             "softhsm" => {
-                let module_path = std::env::var("PKCS11_MODULE").map_err(|_| {
-                    HardwareError::InvalidData("PKCS11_MODULE not set".into())
-                })?;
+                let module_path = std::env::var("PKCS11_MODULE")
+                    .map_err(|_| HardwareError::InvalidData("PKCS11_MODULE not set".into()))?;
                 let slot = std::env::var("PKCS11_SLOT")
                     .unwrap_or_else(|_| "0".into())
                     .parse()
@@ -150,16 +132,14 @@ impl HardwareConfig {
             }
             #[cfg(all(feature = "tpm", target_os = "linux"))]
             "tpm" => {
-                let interface = std::env::var("TPM_INTERFACE")
-                    .unwrap_or_else(|_| "socket".into());
-                let host = std::env::var("TPM_HOST")
-                    .unwrap_or_else(|_| "localhost".into());
+                let interface = std::env::var("TPM_INTERFACE").unwrap_or_else(|_| "socket".into());
+                let host = std::env::var("TPM_HOST").unwrap_or_else(|_| "localhost".into());
                 let port: u16 = std::env::var("TPM_PORT")
                     .unwrap_or_else(|_| "2321".into())
                     .parse()
                     .map_err(|_| HardwareError::InvalidData("Invalid TPM_PORT".into()))?;
-                let device_path = std::env::var("TPM_DEVICE")
-                    .unwrap_or_else(|_| "/dev/tpm0".into());
+                let device_path =
+                    std::env::var("TPM_DEVICE").unwrap_or_else(|_| "/dev/tpm0".into());
                 HsmBackend::Tpm {
                     interface,
                     host,
@@ -174,7 +154,9 @@ impl HardwareConfig {
                 let auth_key_id: u16 = std::env::var("YUBIHSM_AUTH_KEY_ID")
                     .unwrap_or_else(|_| "1".into())
                     .parse()
-                    .map_err(|_| HardwareError::InvalidData("Invalid YUBIHSM_AUTH_KEY_ID".into()))?;
+                    .map_err(|_| {
+                        HardwareError::InvalidData("Invalid YUBIHSM_AUTH_KEY_ID".into())
+                    })?;
                 let password = std::env::var("YUBIHSM_PASSWORD")
                     .map_err(|_| HardwareError::InvalidData("YUBIHSM_PASSWORD not set".into()))?;
                 HsmBackend::YubiHsm {
@@ -186,9 +168,13 @@ impl HardwareConfig {
             #[cfg(all(feature = "nitro", target_os = "linux"))]
             "nitro" => {
                 let cid: u32 = std::env::var("CHINJU_NITRO_ENCLAVE_CID")
-                    .map_err(|_| HardwareError::InvalidData("CHINJU_NITRO_ENCLAVE_CID not set".into()))?
+                    .map_err(|_| {
+                        HardwareError::InvalidData("CHINJU_NITRO_ENCLAVE_CID not set".into())
+                    })?
                     .parse()
-                    .map_err(|_| HardwareError::InvalidData("Invalid CHINJU_NITRO_ENCLAVE_CID".into()))?;
+                    .map_err(|_| {
+                        HardwareError::InvalidData("Invalid CHINJU_NITRO_ENCLAVE_CID".into())
+                    })?;
                 let port: u32 = std::env::var("CHINJU_NITRO_PORT")
                     .unwrap_or_else(|_| "5000".into())
                     .parse()
@@ -360,9 +346,7 @@ pub fn create_dead_mans_switch(
     config: &HardwareConfig,
 ) -> Result<Box<dyn DeadMansSwitch>, HardwareError> {
     match &config.hsm {
-        HsmBackend::Mock => {
-            Ok(Box::new(SoftDeadMansSwitch::default()))
-        }
+        HsmBackend::Mock => Ok(Box::new(SoftDeadMansSwitch::default())),
         #[cfg(all(feature = "tpm", target_os = "linux"))]
         HsmBackend::Tpm {
             interface,
@@ -378,7 +362,7 @@ pub fn create_dead_mans_switch(
         }
         // Fallback to soft switch for other backends for now
         #[allow(unreachable_patterns)]
-        _ => Ok(Box::new(SoftDeadMansSwitch::default()))
+        _ => Ok(Box::new(SoftDeadMansSwitch::default())),
     }
 }
 

@@ -208,8 +208,8 @@ pub struct ErrorDetail {
 
 // Helper module for base64 serialization
 mod base64_bytes {
-    use serde::{Deserialize, Deserializer, Serializer};
     use base64::{engine::general_purpose::STANDARD, Engine};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     where

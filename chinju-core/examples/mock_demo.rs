@@ -49,7 +49,10 @@ fn demo_hsm() {
     let message = b"Hello, CHINJU Protocol!";
     let signature = hsm.sign(&key_handle, message).unwrap();
     println!("Signed message: {:?}", String::from_utf8_lossy(message));
-    println!("Signature (first 16 bytes): {:02x?}", &signature.signature[..16]);
+    println!(
+        "Signature (first 16 bytes): {:02x?}",
+        &signature.signature[..16]
+    );
 
     // Verify signature
     let valid = hsm.verify(&key_handle, message, &signature).unwrap();
@@ -92,10 +95,7 @@ fn demo_otp() {
 
     // Read back
     let read_data = otp.read(&slot).unwrap();
-    println!(
-        "Read back: {:?}",
-        String::from_utf8_lossy(&read_data)
-    );
+    println!("Read back: {:?}", String::from_utf8_lossy(&read_data));
 
     // Verify burned
     println!("Slot is burned: {}", otp.is_burned(&slot).unwrap());

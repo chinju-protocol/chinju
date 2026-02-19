@@ -9,8 +9,8 @@
 //! - L3 (YubiHSM): Hardware HSM
 
 pub mod dead_mans_switch;
-pub mod physical_kill_switch;
 pub mod mock;
+pub mod physical_kill_switch;
 pub mod provider;
 pub mod traits;
 
@@ -31,8 +31,8 @@ pub mod nitro;
 
 // Re-exports
 pub use dead_mans_switch::{
-    DeadMansSwitch, DeadMansSwitchConfig, DeadMansSwitchError, EmergencyCallback,
-    EnvironmentState, SoftDeadMansSwitch, SwitchState,
+    DeadMansSwitch, DeadMansSwitchConfig, DeadMansSwitchError, EmergencyCallback, EnvironmentState,
+    SoftDeadMansSwitch, SwitchState,
 };
 pub use mock::*;
 pub use provider::{

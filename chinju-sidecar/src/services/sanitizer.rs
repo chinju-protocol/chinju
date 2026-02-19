@@ -5,9 +5,9 @@
 //! - Code normalization (AST transform, variable renaming)
 //! - Timing normalization (handled by side_channel module)
 
+use crate::services::analog_sanitizer::AnalogSanitizer;
 use crate::services::openai_client::{ClientError, OpenAiClient, OpenAiClientConfig};
 use crate::services::openai_types::{ChatCompletionRequest, ChatMessage};
-use crate::services::analog_sanitizer::AnalogSanitizer;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -299,7 +299,10 @@ impl OutputSanitizer {
                 let full_match = cap.get(0).unwrap();
                 CodeBlock {
                     language: cap.get(1).map(|m| m.as_str().to_string()),
-                    content: cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default(),
+                    content: cap
+                        .get(2)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_default(),
                     start_idx: full_match.start(),
                     end_idx: full_match.end(),
                 }
@@ -371,23 +374,60 @@ impl OutputSanitizer {
         // Reserved words that shouldn't be renamed
         let reserved: &[&str] = match lang.as_str() {
             "rust" => &[
-                "fn", "let", "mut", "const", "if", "else", "while", "for", "loop", "match", "return",
-                "struct", "enum", "impl", "trait", "pub", "use", "mod", "crate", "self", "Self",
-                "super", "async", "await", "move", "ref", "static", "type", "where", "dyn", "true",
-                "false", "in", "as", "break", "continue", "extern", "unsafe",
+                "fn", "let", "mut", "const", "if", "else", "while", "for", "loop", "match",
+                "return", "struct", "enum", "impl", "trait", "pub", "use", "mod", "crate", "self",
+                "Self", "super", "async", "await", "move", "ref", "static", "type", "where", "dyn",
+                "true", "false", "in", "as", "break", "continue", "extern", "unsafe",
             ],
             "python" => &[
                 "def", "class", "if", "elif", "else", "for", "while", "return", "import", "from",
                 "as", "try", "except", "finally", "with", "lambda", "yield", "global", "nonlocal",
-                "pass", "break", "continue", "True", "False", "None", "and", "or", "not", "is", "in",
-                "async", "await", "raise", "assert",
+                "pass", "break", "continue", "True", "False", "None", "and", "or", "not", "is",
+                "in", "async", "await", "raise", "assert",
             ],
             "javascript" | "typescript" => &[
-                "function", "const", "let", "var", "if", "else", "for", "while", "do", "switch",
-                "case", "break", "continue", "return", "try", "catch", "finally", "throw", "class",
-                "extends", "new", "this", "super", "import", "export", "default", "async", "await",
-                "true", "false", "null", "undefined", "typeof", "instanceof", "in", "of", "void",
-                "delete", "yield", "static", "get", "set",
+                "function",
+                "const",
+                "let",
+                "var",
+                "if",
+                "else",
+                "for",
+                "while",
+                "do",
+                "switch",
+                "case",
+                "break",
+                "continue",
+                "return",
+                "try",
+                "catch",
+                "finally",
+                "throw",
+                "class",
+                "extends",
+                "new",
+                "this",
+                "super",
+                "import",
+                "export",
+                "default",
+                "async",
+                "await",
+                "true",
+                "false",
+                "null",
+                "undefined",
+                "typeof",
+                "instanceof",
+                "in",
+                "of",
+                "void",
+                "delete",
+                "yield",
+                "static",
+                "get",
+                "set",
             ],
             _ => &[],
         };
@@ -598,7 +638,10 @@ impl OutputSanitizer {
             .captures_iter(text)
             .map(|cap| {
                 let language = cap.get(1).map(|m| m.as_str().to_string());
-                let content = cap.get(2).map(|m| m.as_str().to_string()).unwrap_or_default();
+                let content = cap
+                    .get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default();
                 (language, content)
             })
             .collect()
@@ -724,7 +767,9 @@ def calculate_total(items):
 More text  with   extra   spaces.
 "#;
 
-        let result = sanitizer.sanitize(text, Some(SanitizationMode::Standard)).await;
+        let result = sanitizer
+            .sanitize(text, Some(SanitizationMode::Standard))
+            .await;
 
         // Zero-width characters should be removed
         assert!(!result.contains('\u{200B}'));

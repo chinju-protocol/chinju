@@ -2,6 +2,7 @@
 
 use super::context::{TpmContext, TpmError};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
 use tss_esapi::{
     attributes::ObjectAttributesBuilder,
     interface_types::{
@@ -14,7 +15,6 @@ use tss_esapi::{
         PublicRsaParametersBuilder, RsaScheme, SignatureScheme, SymmetricDefinitionObject,
     },
 };
-use tracing::{debug, info, warn};
 
 /// PCR bank (hash algorithm)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,12 +110,15 @@ impl<'a> PcrOps<'a> {
             .build()
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
 
-        let (_, _, pcr_data) = self.context.context_mut()
+        let (_, _, pcr_data) = self
+            .context
+            .context_mut()
             .execute_without_session(|ctx| ctx.pcr_read(selection))
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
 
         // Extract the digest value
-        let digest = pcr_data.pcr_bank(bank.to_hashing_algorithm())
+        let digest = pcr_data
+            .pcr_bank(bank.to_hashing_algorithm())
             .and_then(|bank_data| bank_data.first())
             .map(|d| d.as_bytes().to_vec())
             .unwrap_or_else(|| vec![0u8; bank.digest_size()]);
@@ -152,25 +155,25 @@ impl<'a> PcrOps<'a> {
         // Hash the data first
         let digest = match bank {
             PcrBank::Sha1 => {
-                use sha1::{Sha1, Digest};
+                use sha1::{Digest, Sha1};
                 let mut hasher = Sha1::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
             PcrBank::Sha256 => {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
             PcrBank::Sha384 => {
-                use sha2::{Sha384, Digest};
+                use sha2::{Digest, Sha384};
                 let mut hasher = Sha384::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
             PcrBank::Sha512 => {
-                use sha2::{Sha512, Digest};
+                use sha2::{Digest, Sha512};
                 let mut hasher = Sha512::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
@@ -182,9 +185,11 @@ impl<'a> PcrOps<'a> {
             bank.to_hashing_algorithm(),
             tss_esapi::structures::Digest::try_from(digest)
                 .map_err(|e| TpmError::PcrError(e.to_string()))?,
-        ).map_err(|e| TpmError::PcrError(e.to_string()))?;
+        )
+        .map_err(|e| TpmError::PcrError(e.to_string()))?;
 
-        self.context.context_mut()
+        self.context
+            .context_mut()
             .execute_without_session(|ctx| ctx.pcr_extend(pcr_slot.into(), digest_values))
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
 
@@ -205,7 +210,8 @@ impl<'a> PcrOps<'a> {
         let pcr_slot = PcrSlot::try_from(index as u32)
             .map_err(|_| TpmError::PcrError(format!("Invalid PCR index: {}", index)))?;
 
-        self.context.context_mut()
+        self.context
+            .context_mut()
             .execute_without_session(|ctx| ctx.pcr_reset(pcr_slot.into()))
             .map_err(|e| TpmError::PcrError(e.to_string()))?;
 
@@ -301,10 +307,7 @@ impl<'a> PcrOps<'a> {
         let attestation_data = quote_result.0.attestation_data().to_vec();
 
         // Flush the AK handle to free TPM resources
-        let _ = self
-            .context
-            .context_mut()
-            .flush_context(ak_handle.into());
+        let _ = self.context.context_mut().flush_context(ak_handle.into());
 
         info!(
             indices = ?indices,
@@ -410,7 +413,7 @@ impl PcrQuote {
     /// This computes a SHA-256 hash of the concatenated PCR values,
     /// which should match the digest in the attestation data.
     pub fn compute_pcr_digest(&self) -> Vec<u8> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         for pcr in &self.pcr_values {
             hasher.update(&pcr.value);
@@ -536,13 +539,20 @@ mod tests {
         let mut ops = PcrOps::new(&mut context);
 
         let nonce = b"test-nonce-12345";
-        let quote = ops.quote(&[0, 1, 7], PcrBank::Sha256, nonce)
+        let quote = ops
+            .quote(&[0, 1, 7], PcrBank::Sha256, nonce)
             .expect("Failed to get quote");
 
-        assert!(quote.is_complete(), "Quote should have signature and attestation data");
+        assert!(
+            quote.is_complete(),
+            "Quote should have signature and attestation data"
+        );
         assert!(quote.verify_nonce(nonce));
         assert!(!quote.signature.is_empty(), "Signature should not be empty");
-        assert!(!quote.attestation_data.is_empty(), "Attestation data should not be empty");
+        assert!(
+            !quote.attestation_data.is_empty(),
+            "Attestation data should not be empty"
+        );
 
         println!("Quote signature length: {}", quote.signature.len());
         println!("Attestation data length: {}", quote.attestation_data.len());

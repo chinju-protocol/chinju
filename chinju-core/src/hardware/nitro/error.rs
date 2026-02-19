@@ -101,12 +101,14 @@ impl From<NitroError> for HardwareError {
             NitroError::ConnectionFailed(msg) => HardwareError::CommunicationError(msg),
             NitroError::CommunicationError(msg) => HardwareError::CommunicationError(msg),
             NitroError::AttestationFailed(msg) => HardwareError::AttestationFailed(msg),
-            NitroError::PcrMismatch { index, expected, actual } => {
-                HardwareError::AttestationFailed(format!(
-                    "PCR{} mismatch: expected {}, got {}",
-                    index, expected, actual
-                ))
-            }
+            NitroError::PcrMismatch {
+                index,
+                expected,
+                actual,
+            } => HardwareError::AttestationFailed(format!(
+                "PCR{} mismatch: expected {}, got {}",
+                index, expected, actual
+            )),
             NitroError::ChallengeMismatch => {
                 HardwareError::AttestationFailed("Challenge mismatch".to_string())
             }

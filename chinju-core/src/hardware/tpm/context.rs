@@ -2,12 +2,12 @@
 
 use std::convert::TryFrom;
 use thiserror::Error;
+use tracing::{debug, info, warn};
 use tss_esapi::{
     abstraction::transient::TransientKeyContextBuilder,
-    tcti_ldr::{TctiNameConf, TabrmdConfig, DeviceConfig, SwtpmConfig},
+    tcti_ldr::{DeviceConfig, SwtpmConfig, TabrmdConfig, TctiNameConf},
     Context,
 };
-use tracing::{debug, info, warn};
 
 /// TPM-related errors
 #[derive(Debug, Error)]
@@ -91,14 +91,12 @@ impl TpmConfig {
             .as_str()
         {
             "device" => {
-                let path = std::env::var("TPM_DEVICE")
-                    .unwrap_or_else(|_| "/dev/tpm0".to_string());
+                let path = std::env::var("TPM_DEVICE").unwrap_or_else(|_| "/dev/tpm0".to_string());
                 TpmInterface::Device { path }
             }
             "tabrmd" => TpmInterface::Tabrmd,
             _ => {
-                let host = std::env::var("TPM_HOST")
-                    .unwrap_or_else(|_| "localhost".to_string());
+                let host = std::env::var("TPM_HOST").unwrap_or_else(|_| "localhost".to_string());
                 let port: u16 = std::env::var("TPM_PORT")
                     .ok()
                     .and_then(|s| s.parse().ok())
@@ -145,9 +143,7 @@ impl TpmConfig {
                     .map_err(|e| TpmError::InitializationFailed(e.to_string()))?;
                 Ok(TctiNameConf::Device(config))
             }
-            TpmInterface::Tabrmd => {
-                Ok(TctiNameConf::Tabrmd(TabrmdConfig::default()))
-            }
+            TpmInterface::Tabrmd => Ok(TctiNameConf::Tabrmd(TabrmdConfig::default())),
         }
     }
 }
@@ -164,8 +160,8 @@ impl TpmContext {
         info!("Initializing TPM context with {:?}", config.interface);
 
         let tcti = config.to_tcti_name_conf()?;
-        let context = Context::new(tcti)
-            .map_err(|e| TpmError::InitializationFailed(e.to_string()))?;
+        let context =
+            Context::new(tcti).map_err(|e| TpmError::InitializationFailed(e.to_string()))?;
 
         debug!("TPM context created successfully");
 
@@ -197,7 +193,8 @@ impl TpmContext {
         use tss_esapi::constants::tss::TPM2_PT_MANUFACTURER;
         use tss_esapi::structures::CapabilityData;
 
-        let (caps, _) = self.context
+        let (caps, _) = self
+            .context
             .get_capability(
                 tss_esapi::constants::CapabilityType::TpmProperties,
                 TPM2_PT_MANUFACTURER,
@@ -206,11 +203,10 @@ impl TpmContext {
             .map_err(|e| TpmError::OperationFailed(e.to_string()))?;
 
         let manufacturer = match caps {
-            CapabilityData::TpmProperties(props) => {
-                props.first()
-                    .map(|p| format!("{:08x}", p.value()))
-                    .unwrap_or_else(|| "unknown".to_string())
-            }
+            CapabilityData::TpmProperties(props) => props
+                .first()
+                .map(|p| format!("{:08x}", p.value()))
+                .unwrap_or_else(|| "unknown".to_string()),
             _ => "unknown".to_string(),
         };
 

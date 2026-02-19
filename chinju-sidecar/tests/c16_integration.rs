@@ -6,14 +6,12 @@
 //! - CollapseDetector
 //! - Gateway integration
 
-use chinju_sidecar::services::{
-    ContradictionController, ContradictionControllerConfig,
-    ContainmentConfig,
-};
 use chinju_sidecar::services::contradiction_controller::{
-    ContradictionConfig, ContradictionStrength, ContradictionType,
-    ContextLimitConfig, InjectionTiming, PaddingType, PaddingGenerator,
-    CollapseDetector, CollapseType, ControlState,
+    CollapseDetector, CollapseType, ContextLimitConfig, ContradictionConfig, ContradictionStrength,
+    ContradictionType, ControlState, InjectionTiming, PaddingGenerator, PaddingType,
+};
+use chinju_sidecar::services::{
+    ContainmentConfig, ContradictionController, ContradictionControllerConfig,
 };
 
 // =============================================================================
@@ -98,7 +96,11 @@ async fn test_session_cleanup() {
     // Create multiple sessions
     for i in 0..5 {
         controller
-            .start_control(&format!("session-{}", i), ContextLimitConfig::default(), contradiction_config.clone())
+            .start_control(
+                &format!("session-{}", i),
+                ContextLimitConfig::default(),
+                contradiction_config.clone(),
+            )
             .await;
     }
 

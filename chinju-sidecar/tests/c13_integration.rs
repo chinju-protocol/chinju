@@ -6,7 +6,9 @@
 //! - Side Channel Blocker
 //! - Dead Man's Switch
 
-use chinju_core::hardware::{DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch, SwitchState};
+use chinju_core::hardware::{
+    DeadMansSwitch, DeadMansSwitchConfig, SoftDeadMansSwitch, SwitchState,
+};
 use chinju_sidecar::services::{
     ExtractionDeterrent, ExtractionDeterrentConfig, OutputSanitizer, SanitizationMode,
     SanitizerConfig, SideChannelBlocker, SideChannelConfig,
@@ -268,7 +270,9 @@ async fn test_light_sanitization() {
     let sanitizer = OutputSanitizer::new();
 
     let input = "Hello  World with  multiple spaces.";
-    let output = sanitizer.sanitize(input, Some(SanitizationMode::Light)).await;
+    let output = sanitizer
+        .sanitize(input, Some(SanitizationMode::Light))
+        .await;
 
     // Light mode still normalizes whitespace
     assert!(!output.contains("  ")); // Double spaces removed

@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-use crate::types::{Hash, HashAlgorithm, HardwareAttestation, Signature, Timestamp};
 use super::ceremony::CeremonyRecord;
 use super::FrostError;
+use crate::types::{HardwareAttestation, Hash, HashAlgorithm, Signature, Timestamp};
 
 /// Witness record for ceremony evidence
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -46,10 +46,7 @@ pub struct AuditPersister {
 
 impl AuditPersister {
     /// Create a new persister
-    pub fn new(
-        receiver: mpsc::Receiver<AuditLogEntry>,
-        storage: Arc<dyn StorageBackend>,
-    ) -> Self {
+    pub fn new(receiver: mpsc::Receiver<AuditLogEntry>, storage: Arc<dyn StorageBackend>) -> Self {
         Self {
             receiver,
             storage,
@@ -181,12 +178,17 @@ pub async fn create_audit_system_with_restore(
     storage: Arc<dyn StorageBackend>,
     source_id: impl Into<String>,
     buffer_size: usize,
-) -> Result<(Arc<crate::services::audit::AuditLogger>, AuditPersister), crate::services::audit::storage::StorageError>
-{
+) -> Result<
+    (Arc<crate::services::audit::AuditLogger>, AuditPersister),
+    crate::services::audit::storage::StorageError,
+> {
     use crate::services::audit::chain::HashChainManager;
     use crate::services::audit::AuditLogger;
 
     let (tx, rx) = mpsc::channel(buffer_size);
+
+    // Fail fast if persisted logs appear tampered.
+    storage.verify_integrity().await?;
 
     // Restore chain state from storage
     let chain = if let Some(latest) = storage.get_latest().await? {
@@ -195,7 +197,10 @@ pub async fn create_audit_system_with_restore(
             hash = %latest.hash,
             "Restored audit chain state"
         );
-        Arc::new(HashChainManager::from_state(latest.sequence + 1, latest.hash))
+        Arc::new(HashChainManager::from_state(
+            latest.sequence + 1,
+            latest.hash,
+        ))
     } else {
         info!("Starting new audit chain (genesis)");
         Arc::new(HashChainManager::new())
@@ -210,12 +215,16 @@ pub async fn create_audit_system_with_restore(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ids::{CredentialId, RequestId};
+    use crate::services::audit::chain::HashChainManager;
     use crate::services::audit::storage::file::FileStorage;
-    use crate::services::audit::types::{Actor, AuditDetails, AuditEventType, AuditResult, Resource};
+    use crate::services::audit::types::{
+        Actor, AuditDetails, AuditEventType, AuditResult, Resource,
+    };
     use tempfile::TempDir;
 
     fn create_test_entry(sequence: u64) -> AuditLogEntry {
-        let mut entry = AuditLogEntry::builder()
+        AuditLogEntry::builder()
             .event_type(AuditEventType::AiRequest)
             .source_id("test")
             .request_id(format!("req-{}", sequence))
@@ -223,12 +232,18 @@ mod tests {
             .resource(Resource::ai_model("gpt-4"))
             .result(AuditResult::success())
             .details(AuditDetails::default())
-            .build();
+            .build()
+    }
 
-        entry.sequence = sequence;
-        entry.prev_hash = "sha256:test".to_string();
-        entry.hash = format!("sha256:hash-{}", sequence);
-        entry
+    async fn create_chained_entries(count: u64) -> Vec<AuditLogEntry> {
+        let chain = HashChainManager::new();
+        let mut entries = Vec::new();
+        for i in 0..count {
+            let mut entry = create_test_entry(i);
+            chain.chain_entry(&mut entry).await;
+            entries.push(entry);
+        }
+        entries
     }
 
     #[tokio::test]
@@ -254,8 +269,8 @@ mod tests {
         let handle = tokio::spawn(persister.run());
 
         // Send entries
-        for i in 0..10 {
-            tx.send(create_test_entry(i)).await.unwrap();
+        for entry in create_chained_entries(10).await {
+            tx.send(entry).await.unwrap();
         }
 
         // Wait for flush
@@ -286,7 +301,13 @@ mod tests {
 
         // Log an entry
         let result = logger
-            .log_ai_request("req-1", Some("user-1"), Some(0.8), b"test", "gpt-4")
+            .log_ai_request(
+                &RequestId::new("req-1").unwrap(),
+                Some(&CredentialId::new("user-1").unwrap()),
+                Some(0.8),
+                b"test",
+                "gpt-4",
+            )
             .await;
         assert!(result.is_ok());
 
@@ -300,5 +321,24 @@ mod tests {
         // Verify
         let latest = storage.get_latest().await.unwrap();
         assert!(latest.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_restore_fails_when_chain_tampered() {
+        let temp_dir = TempDir::new().unwrap();
+        let log_path = temp_dir.path().join("audit.jsonl");
+        let archive_dir = temp_dir.path().join("archive");
+
+        let storage = Arc::new(FileStorage::new(log_path.clone(), archive_dir).unwrap());
+        let entries = create_chained_entries(3).await;
+        storage.append_batch(&entries).await.unwrap();
+
+        let content = std::fs::read_to_string(&log_path).unwrap();
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        lines[2] = lines[2].replace("\"success\":true", "\"success\":false");
+        std::fs::write(&log_path, format!("{}\n", lines.join("\n"))).unwrap();
+
+        let restored = create_audit_system_with_restore(storage, "test-sidecar", 100).await;
+        assert!(restored.is_err());
     }
 }

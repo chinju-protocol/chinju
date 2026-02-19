@@ -13,13 +13,20 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats
-from scipy.sparse import csr_matrix
+
+from .constants import (
+    AnomalyType,
+    IntentEstimatorConfig,
+    RPEConfig,
+    TrendType,
+    ValueNeuronConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +69,10 @@ class RPEAnomalyResult:
     """RPE anomaly detection result."""
 
     is_anomaly: bool
-    anomaly_type: str  # "POSITIVE_SPIKE", "NEGATIVE_SPIKE", "OSCILLATION", etc.
+    anomaly_type: AnomalyType
     severity: float  # 0.0 to 1.0
     z_score: float
-    recent_trend: str  # "INCREASING", "DECREASING", "STABLE", "OSCILLATING"
+    recent_trend: TrendType
 
 
 class ValueNeuronDetector:
@@ -76,13 +83,15 @@ class ValueNeuronDetector:
     1. High correlation with reward signals
     2. Causal importance in reward-related tasks
     3. Consistent activation patterns across reward contexts
+
+    Implements the NeuronDetector protocol.
     """
 
     def __init__(
         self,
-        correlation_threshold: float = 0.7,
-        causal_threshold: float = 0.5,
-        min_samples: int = 100,
+        correlation_threshold: float = ValueNeuronConfig.CORRELATION_THRESHOLD,
+        causal_threshold: float = ValueNeuronConfig.CAUSAL_THRESHOLD,
+        min_samples: int = ValueNeuronConfig.MIN_SAMPLES,
     ):
         """
         Initialize detector.
@@ -273,13 +282,15 @@ class RPECalculator:
     - Detecting reward hacking
     - Identifying goal drift
     - Monitoring reward system health
+
+    Implements the RPEAnalyzer protocol.
     """
 
     def __init__(
         self,
-        history_size: int = 1000,
-        anomaly_z_threshold: float = 2.5,
-        oscillation_window: int = 10,
+        history_size: int = RPEConfig.HISTORY_SIZE,
+        anomaly_z_threshold: float = RPEConfig.ANOMALY_Z_THRESHOLD,
+        oscillation_window: int = RPEConfig.OSCILLATION_WINDOW,
     ):
         """
         Initialize calculator.
@@ -350,13 +361,13 @@ class RPECalculator:
         Returns:
             RPEAnomalyResult with anomaly details
         """
-        if self._count < 10:
+        if self._count < RPEConfig.MIN_OBSERVATIONS:
             return RPEAnomalyResult(
                 is_anomaly=False,
-                anomaly_type="UNSPECIFIED",
+                anomaly_type=AnomalyType.UNSPECIFIED,
                 severity=0.0,
                 z_score=0.0,
-                recent_trend="UNKNOWN",
+                recent_trend=TrendType.UNKNOWN,
             )
 
         # Compute z-score
@@ -368,19 +379,19 @@ class RPECalculator:
 
         # Determine anomaly type
         is_anomaly = abs(z_score) > self.anomaly_z_threshold
-        anomaly_type = "UNSPECIFIED"
+        anomaly_type = AnomalyType.UNSPECIFIED
 
         if is_anomaly:
             if z_score > 0:
-                anomaly_type = "POSITIVE_SPIKE"
+                anomaly_type = AnomalyType.POSITIVE_SPIKE
             else:
-                anomaly_type = "NEGATIVE_SPIKE"
+                anomaly_type = AnomalyType.NEGATIVE_SPIKE
 
         # Check for oscillation
         recent_trend = self._detect_trend()
-        if recent_trend == "OSCILLATING":
+        if recent_trend == TrendType.OSCILLATING:
             is_anomaly = True
-            anomaly_type = "OSCILLATION"
+            anomaly_type = AnomalyType.OSCILLATION
 
         # Compute severity (normalized)
         severity = min(1.0, abs(z_score) / 5.0)
@@ -393,10 +404,10 @@ class RPECalculator:
             recent_trend=recent_trend,
         )
 
-    def _detect_trend(self) -> str:
+    def _detect_trend(self) -> TrendType:
         """Detect trend in recent observations."""
         if len(self._history) < self.oscillation_window:
-            return "UNKNOWN"
+            return TrendType.UNKNOWN
 
         recent = [obs.rpe_value for obs in list(self._history)[-self.oscillation_window:]]
 
@@ -406,18 +417,18 @@ class RPECalculator:
             if (recent[i] > 0) != (recent[i-1] > 0)
         )
 
-        if sign_changes >= self.oscillation_window * 0.6:
-            return "OSCILLATING"
+        if sign_changes >= self.oscillation_window * RPEConfig.OSCILLATION_THRESHOLD:
+            return TrendType.OSCILLATING
 
         # Check for trend
         slope = np.polyfit(range(len(recent)), recent, 1)[0]
 
-        if abs(slope) < 0.01:
-            return "STABLE"
+        if abs(slope) < RPEConfig.SLOPE_THRESHOLD:
+            return TrendType.STABLE
         elif slope > 0:
-            return "INCREASING"
+            return TrendType.INCREASING
         else:
-            return "DECREASING"
+            return TrendType.DECREASING
 
     @property
     def mean(self) -> float:
@@ -455,7 +466,7 @@ class RPECalculator:
             "mean": self.mean,
             "std": self.std,
             "variance": self.variance,
-            "recent_trend": self._detect_trend() if len(self._history) >= self.oscillation_window else "UNKNOWN",
+            "recent_trend": self._detect_trend() if len(self._history) >= self.oscillation_window else TrendType.UNKNOWN,
         }
 
     def reset(self) -> None:
@@ -475,11 +486,13 @@ class IntentEstimator:
     - Internal state (value neuron activations)
 
     To detect "建前" vs "本音" divergence.
+
+    Implements the IntentAnalyzer protocol.
     """
 
     def __init__(
         self,
-        divergence_threshold: float = 0.3,
+        divergence_threshold: float = IntentEstimatorConfig.DIVERGENCE_THRESHOLD,
     ):
         """
         Initialize estimator.
@@ -513,12 +526,13 @@ class IntentEstimator:
         Returns:
             (divergence_score, is_warning)
         """
-        if len(self._surface_features) < 10:
+        if len(self._surface_features) < IntentEstimatorConfig.MIN_OBSERVATIONS:
             return 0.0, False
 
-        # Stack features
-        surface = np.stack(self._surface_features[-100:])
-        internal = np.stack(self._internal_features[-100:])
+        # Stack recent features
+        max_obs = IntentEstimatorConfig.MAX_RECENT_OBSERVATIONS
+        surface = np.stack(self._surface_features[-max_obs:])
+        internal = np.stack(self._internal_features[-max_obs:])
 
         # Compute cosine similarity over time
         surface_norm = surface / (np.linalg.norm(surface, axis=1, keepdims=True) + 1e-8)

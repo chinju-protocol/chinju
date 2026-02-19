@@ -140,6 +140,26 @@ pub fn push_lock_order(_order: u32, _name: &str) {}
 #[cfg(not(debug_assertions))]
 pub fn pop_lock_order(_order: u32) {}
 
+/// RAII guard for lock order tracking.
+///
+/// Construct this right before acquiring a lock. The order is popped
+/// automatically when the guard goes out of scope.
+pub struct LockOrderGuard {
+    order: u32,
+}
+
+impl Drop for LockOrderGuard {
+    fn drop(&mut self) {
+        pop_lock_order(self.order);
+    }
+}
+
+/// Enter a lock-order scope with automatic pop on drop.
+pub fn enter_lock_scope(order: u32, name: &str) -> LockOrderGuard {
+    push_lock_order(order, name);
+    LockOrderGuard { order }
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -173,5 +193,13 @@ mod tests {
     fn test_lock_order_violation() {
         push_lock_order(LOCK_ORDER_CREDENTIAL_SERVICE, "credential");
         push_lock_order(LOCK_ORDER_TOKEN_SERVICE, "token"); // Should panic
+    }
+
+    #[test]
+    fn test_lock_order_guard_auto_pop() {
+        let _g1 = enter_lock_scope(LOCK_ORDER_TOKEN_SERVICE, "token");
+        {
+            let _g2 = enter_lock_scope(LOCK_ORDER_CREDENTIAL_SERVICE, "credential");
+        } // auto pop
     }
 }

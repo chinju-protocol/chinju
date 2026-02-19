@@ -564,7 +564,11 @@ impl LptMonitor {
     /// Simple hash for content comparison
     fn hash_content(content: &str) -> String {
         use sha2::{Digest, Sha256};
-        let normalized = content.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ");
+        let normalized = content
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         let mut hasher = Sha256::new();
         hasher.update(normalized.as_bytes());
         hex::encode(hasher.finalize())

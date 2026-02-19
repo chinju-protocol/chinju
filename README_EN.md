@@ -647,7 +647,10 @@ L5 (Full Hardware) - Complete OTP/eFuse/QRNG integration
 
 ### How to Contribute
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+See [CONTRIBUTING_EN.md](./CONTRIBUTING_EN.md) for the English guide.  
+Japanese guide: [CONTRIBUTING.md](./CONTRIBUTING.md).  
+Issues and PRs are welcome in either English or Japanese.
+Please follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 | Contribution Type | First Step | Difficulty |
 |:--|:--|:--|
@@ -715,7 +718,8 @@ Apache 2.0 applies to code copyright. Patents are governed by a separate policy.
 
 **Important**: If you use CHINJU technology, we recommend obtaining "CHINJU Certified" certification or displaying "CHINJU Compatible".
 
-See [CHINJU Charter](./CHINJU_憲章.md) Article 11 for details.
+See [CHINJU Charter (Japanese)](./CHINJU_憲章.md) Article 11 for details.  
+If you need English clarification, open an issue and maintainers will map the relevant section.
 
 ### Commercial License (White Label)
 

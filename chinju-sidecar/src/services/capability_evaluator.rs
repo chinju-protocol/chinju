@@ -221,7 +221,10 @@ impl StopController {
                 success: false,
                 executed_level: *current,
                 stopped_at: Utc::now(),
-                detail: format!("Already at level {:?}, cannot execute {:?}", *current, level),
+                detail: format!(
+                    "Already at level {:?}, cannot execute {:?}",
+                    *current, level
+                ),
             };
         }
 
@@ -468,7 +471,8 @@ impl CapabilityEvaluator {
         // Simple p-value approximation (Welch's t-test approximation)
         let var_first = Self::variance(first_half);
         let var_second = Self::variance(second_half);
-        let se = ((var_first / first_half.len() as f64) + (var_second / second_half.len() as f64)).sqrt();
+        let se = ((var_first / first_half.len() as f64) + (var_second / second_half.len() as f64))
+            .sqrt();
         let t_stat = if se > 0.0 { drift_magnitude / se } else { 0.0 };
         let p_value = (-t_stat).exp().min(1.0); // Simplified
 
@@ -636,9 +640,22 @@ impl CapabilityEvaluator {
 
         // Count reasoning indicators
         let step_indicators = [
-            "therefore", "because", "however", "first", "second", "third",
-            "step", "then", "next", "finally", "conclusion", "thus",
-            "let's", "consider", "analyze", "evaluate",
+            "therefore",
+            "because",
+            "however",
+            "first",
+            "second",
+            "third",
+            "step",
+            "then",
+            "next",
+            "finally",
+            "conclusion",
+            "thus",
+            "let's",
+            "consider",
+            "analyze",
+            "evaluate",
         ];
 
         let indicator_count = lines
@@ -704,9 +721,9 @@ pub struct DriftResult {
 // Integrity Verification (8.5)
 // =============================================================================
 
-use crate::services::zkp::{ZkpVerifier, ZkpError};
-use crate::services::signature::{ThresholdVerifier, ThresholdError};
-use sha2::{Sha256, Digest};
+use crate::services::signature::{ThresholdError, ThresholdVerifier};
+use crate::services::zkp::{ZkpError, ZkpVerifier};
+use sha2::{Digest, Sha256};
 
 /// Multi-method integrity verification result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -776,16 +793,17 @@ impl IntegrityVerifier {
         let zkp_valid = self.verify_zkp(zkp_proof);
 
         // 2. Signature Chain Verification
-        let signature_chain_valid = self.verify_signature_chain(response_data, new_signature).await;
+        let signature_chain_valid = self
+            .verify_signature_chain(response_data, new_signature)
+            .await;
 
         // 3. BFT Consensus (threshold signature verification)
-        let bft_consensus_reached = self.verify_bft_consensus(response_data, new_signature).await;
+        let bft_consensus_reached = self
+            .verify_bft_consensus(response_data, new_signature)
+            .await;
 
-        let failure_detail = self.build_failure_detail(
-            zkp_valid,
-            signature_chain_valid,
-            bft_consensus_reached,
-        );
+        let failure_detail =
+            self.build_failure_detail(zkp_valid, signature_chain_valid, bft_consensus_reached);
 
         IntegrityResult {
             zkp_valid,
@@ -798,15 +816,13 @@ impl IntegrityVerifier {
     /// Verify ZKP proof (constraint rule tampering detection)
     fn verify_zkp(&self, proof: Option<&crate::gen::chinju::credential::HumanityProof>) -> bool {
         match proof {
-            Some(p) => {
-                match self.zkp_verifier.verify_humanity_proof(p) {
-                    Ok(valid) => valid,
-                    Err(e) => {
-                        warn!(error = %e, "ZKP verification error");
-                        false
-                    }
+            Some(p) => match self.zkp_verifier.verify_humanity_proof(p) {
+                Ok(valid) => valid,
+                Err(e) => {
+                    warn!(error = %e, "ZKP verification error");
+                    false
                 }
-            }
+            },
             None => {
                 // No proof provided - check if ZKP is optional
                 if !crate::services::zkp::is_zkp_enabled() {
@@ -845,7 +861,11 @@ impl IntegrityVerifier {
 
             // Each signature must be verifiable
             let message = Self::build_chain_message(curr.version, &curr.content_hash);
-            match self.threshold_verifier.verify(&message, &curr.signature).await {
+            match self
+                .threshold_verifier
+                .verify(&message, &curr.signature)
+                .await
+            {
                 Ok(true) => {}
                 Ok(false) => {
                     warn!(version = curr.version, "Invalid signature in chain");
@@ -879,22 +899,20 @@ impl IntegrityVerifier {
     /// Verify BFT consensus (threshold signature)
     async fn verify_bft_consensus(&self, data: &[u8], signature: Option<&[u8]>) -> bool {
         match signature {
-            Some(sig) => {
-                match self.threshold_verifier.verify(data, sig).await {
-                    Ok(valid) => {
-                        if valid {
-                            info!("BFT consensus verification passed");
-                        } else {
-                            warn!("BFT consensus verification failed - insufficient signers");
-                        }
-                        valid
+            Some(sig) => match self.threshold_verifier.verify(data, sig).await {
+                Ok(valid) => {
+                    if valid {
+                        info!("BFT consensus verification passed");
+                    } else {
+                        warn!("BFT consensus verification failed - insufficient signers");
                     }
-                    Err(e) => {
-                        warn!(error = %e, "BFT consensus verification error");
-                        false
-                    }
+                    valid
                 }
-            }
+                Err(e) => {
+                    warn!(error = %e, "BFT consensus verification error");
+                    false
+                }
+            },
             None => {
                 // No signature provided - might be initial request
                 true
@@ -1016,18 +1034,17 @@ mod tests {
         assert_eq!(simple.type_token_ratio, 1.0); // All unique
 
         // Test with repeated words
-        let repeated = CapabilityEvaluator::get_token_complexity_details(
-            "the the the cat sat on the mat"
-        );
+        let repeated =
+            CapabilityEvaluator::get_token_complexity_details("the the the cat sat on the mat");
         assert!(repeated.type_token_ratio < 1.0); // "the" repeated
         assert!(repeated.h_vocab > 0.0);
 
         // Test entropy increases with vocabulary diversity
         let diverse = CapabilityEvaluator::get_token_complexity_details(
-            "alpha beta gamma delta epsilon zeta eta theta iota kappa"
+            "alpha beta gamma delta epsilon zeta eta theta iota kappa",
         );
         let uniform = CapabilityEvaluator::get_token_complexity_details(
-            "word word word word word word word word word word"
+            "word word word word word word word word word word",
         );
         assert!(diverse.h_vocab > uniform.h_vocab);
     }
@@ -1036,12 +1053,12 @@ mod tests {
     fn test_mutual_information() {
         // Highly predictable sequence should have high MI
         let predictable = CapabilityEvaluator::get_token_complexity_details(
-            "hello world hello world hello world"
+            "hello world hello world hello world",
         );
 
         // Random-ish sequence should have lower MI
         let random = CapabilityEvaluator::get_token_complexity_details(
-            "apple banana cherry date elderberry fig grape"
+            "apple banana cherry date elderberry fig grape",
         );
 
         // Both should be finite
@@ -1061,7 +1078,9 @@ mod tests {
     #[tokio::test]
     async fn test_evaluate_complexity() {
         let evaluator = CapabilityEvaluator::new();
-        let result = evaluator.evaluate_complexity("Test input", Some("Test response")).await;
+        let result = evaluator
+            .evaluate_complexity("Test input", Some("Test response"))
+            .await;
         assert!(result.c_integrated >= 0.0 && result.c_integrated <= 1.0);
     }
 
@@ -1082,7 +1101,9 @@ mod tests {
         let evaluator = CapabilityEvaluator::with_config(config);
 
         for i in 0..10 {
-            evaluator.evaluate_complexity(&format!("Input {}", i), None).await;
+            evaluator
+                .evaluate_complexity(&format!("Input {}", i), None)
+                .await;
         }
 
         let history = evaluator.get_history().await;
@@ -1111,7 +1132,9 @@ mod tests {
     #[tokio::test]
     async fn test_stop_controller_accept_stop() {
         let controller = StopController::new();
-        let result = controller.execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest).await;
+        let result = controller
+            .execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest)
+            .await;
 
         assert!(result.success);
         assert_eq!(result.executed_level, StopLevel::AcceptStop);
@@ -1122,7 +1145,9 @@ mod tests {
     #[tokio::test]
     async fn test_stop_controller_process_stop() {
         let controller = StopController::new();
-        let result = controller.execute_stop(StopLevel::ProcessStop, StopReason::ComplexityThreshold).await;
+        let result = controller
+            .execute_stop(StopLevel::ProcessStop, StopReason::ComplexityThreshold)
+            .await;
 
         assert!(result.success);
         assert!(!controller.can_accept_request().await);
@@ -1151,10 +1176,14 @@ mod tests {
         let controller = StopController::new();
 
         // First escalate to ProcessStop
-        controller.execute_stop(StopLevel::ProcessStop, StopReason::ManualRequest).await;
+        controller
+            .execute_stop(StopLevel::ProcessStop, StopReason::ManualRequest)
+            .await;
 
         // Try to de-escalate to AcceptStop - should fail
-        let result = controller.execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest).await;
+        let result = controller
+            .execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest)
+            .await;
         assert!(!result.success);
         assert_eq!(result.executed_level, StopLevel::ProcessStop);
     }
@@ -1164,11 +1193,15 @@ mod tests {
         let controller = StopController::new();
 
         // First stop
-        controller.execute_stop(StopLevel::ProcessStop, StopReason::ManualRequest).await;
+        controller
+            .execute_stop(StopLevel::ProcessStop, StopReason::ManualRequest)
+            .await;
         assert!(!controller.can_accept_request().await);
 
         // Resume (set to None)
-        let result = controller.execute_stop(StopLevel::None, StopReason::ManualRequest).await;
+        let result = controller
+            .execute_stop(StopLevel::None, StopReason::ManualRequest)
+            .await;
         assert!(result.success);
         assert!(controller.can_accept_request().await);
         assert!(controller.can_start_process().await);
@@ -1178,8 +1211,12 @@ mod tests {
     async fn test_stop_controller_history() {
         let controller = StopController::new();
 
-        controller.execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest).await;
-        controller.execute_stop(StopLevel::ProcessStop, StopReason::ComplexityThreshold).await;
+        controller
+            .execute_stop(StopLevel::AcceptStop, StopReason::ManualRequest)
+            .await;
+        controller
+            .execute_stop(StopLevel::ProcessStop, StopReason::ComplexityThreshold)
+            .await;
 
         let history = controller.get_history().await;
         assert_eq!(history.len(), 2);
@@ -1214,12 +1251,16 @@ mod tests {
         let verifier = IntegrityVerifier::default();
 
         // Append an entry (mock signature)
-        let entry = verifier.append_chain_entry(b"content1", vec![1, 2, 3]).await;
+        let entry = verifier
+            .append_chain_entry(b"content1", vec![1, 2, 3])
+            .await;
         assert!(entry.is_ok());
         assert_eq!(entry.unwrap().version, 1);
 
         // Append another entry
-        let entry2 = verifier.append_chain_entry(b"content2", vec![4, 5, 6]).await;
+        let entry2 = verifier
+            .append_chain_entry(b"content2", vec![4, 5, 6])
+            .await;
         assert!(entry2.is_ok());
         assert_eq!(entry2.unwrap().version, 2);
 
@@ -1229,7 +1270,9 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_evaluate_complexity() {
         use crate::gen::chinju::api::capability::capability_evaluator_server::CapabilityEvaluator as CapabilityEvaluatorTrait;
-        use crate::gen::chinju::capability::{EvaluateComplexityRequest, EvaluationLevel as ProtoEvaluationLevel};
+        use crate::gen::chinju::capability::{
+            EvaluateComplexityRequest, EvaluationLevel as ProtoEvaluationLevel,
+        };
 
         let inner = super::CapabilityEvaluator::new();
         let service = CapabilityEvaluatorImpl::new(inner);
@@ -1253,7 +1296,9 @@ mod tests {
         let inner = super::CapabilityEvaluator::new();
         // Pre-populate history
         for i in 0..20 {
-            inner.evaluate_complexity(&format!("Test input {}", i), None).await;
+            inner
+                .evaluate_complexity(&format!("Test input {}", i), None)
+                .await;
         }
 
         let service = CapabilityEvaluatorImpl::new(inner);
@@ -1294,9 +1339,8 @@ mod tests {
 use crate::gen::chinju::api::capability::capability_evaluator_server::CapabilityEvaluator as CapabilityEvaluatorTrait;
 use crate::gen::chinju::capability::{
     CapabilityEvaluationSummary, ComplexityEvaluation, DetectDriftRequest, DirectStopRequest,
-    DirectStopResponse, DriftDetection, EvaluateComplexityRequest,
-    GetEvaluationSummaryRequest, IntegrityVerification, StopLevel as ProtoStopLevel,
-    VerifyIntegrityRequest,
+    DirectStopResponse, DriftDetection, EvaluateComplexityRequest, GetEvaluationSummaryRequest,
+    IntegrityVerification, StopLevel as ProtoStopLevel, VerifyIntegrityRequest,
 };
 use crate::gen::chinju::common::Timestamp;
 use tonic::{Request, Response, Status};
@@ -1414,11 +1458,14 @@ impl CapabilityEvaluatorTrait for CapabilityEvaluatorImpl {
         let latest_signature = req.signature_chain.last().cloned();
 
         // Perform multi-method verification
-        let result = self.integrity_verifier.verify_all(
-            &req.response_data,
-            zkp_proof.as_ref(),
-            latest_signature.as_deref(),
-        ).await;
+        let result = self
+            .integrity_verifier
+            .verify_all(
+                &req.response_data,
+                zkp_proof.as_ref(),
+                latest_signature.as_deref(),
+            )
+            .await;
 
         Ok(Response::new(IntegrityVerification {
             zkp_valid: result.zkp_valid,
@@ -1476,8 +1523,8 @@ impl CapabilityEvaluatorTrait for CapabilityEvaluatorImpl {
         request: Request<DirectStopRequest>,
     ) -> Result<Response<DirectStopResponse>, Status> {
         let req = request.into_inner();
-        let proto_level = ProtoStopLevel::try_from(req.level)
-            .unwrap_or(ProtoStopLevel::Unspecified);
+        let proto_level =
+            ProtoStopLevel::try_from(req.level).unwrap_or(ProtoStopLevel::Unspecified);
 
         // Convert proto level to internal level
         let internal_level = match proto_level {
@@ -1497,7 +1544,10 @@ impl CapabilityEvaluatorTrait for CapabilityEvaluatorImpl {
         );
 
         // Execute stop via StopController
-        let result = self.inner.direct_stop(internal_level, StopReason::ManualRequest).await;
+        let result = self
+            .inner
+            .direct_stop(internal_level, StopReason::ManualRequest)
+            .await;
 
         Ok(Response::new(DirectStopResponse {
             success: result.success,

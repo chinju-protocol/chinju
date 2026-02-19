@@ -7,6 +7,7 @@
 //! - Decision making (allow, deny, throttle, audit)
 //! - Policy lifecycle (draft → review → active → superseded)
 
+use crate::constants::policy as policy_const;
 use crate::gen::chinju::api::gateway::AiRequestPayload;
 use crate::gen::chinju::common::{Identifier, Timestamp};
 use crate::gen::chinju::credential::HumanCredential;
@@ -15,6 +16,7 @@ use crate::gen::chinju::policy::{
     LogicalOperator, Operator, PolicyDecision, PolicyMetadata, PolicyPack, PolicyState, Rule,
     RuleType,
 };
+use crate::ids::RequestId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -38,7 +40,7 @@ struct LoadedPolicy {
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     /// Request ID
-    pub request_id: String,
+    pub request_id: RequestId,
     /// User's credential
     pub credential: Option<HumanCredential>,
     /// AI request payload
@@ -56,33 +58,30 @@ impl PolicyEngine {
     pub fn new() -> Self {
         info!("Initializing CHINJU Policy Engine");
 
-        let mut engine = Self {
-            policies: Arc::new(RwLock::new(HashMap::new())),
-            default_policy_id: "policy.default.v1".to_string(),
-        };
-
         // Register default policies synchronously (for initialization)
         let default_policy = Self::create_default_policy();
         let jp_policy = Self::create_jp_policy();
 
-        let policies = Arc::get_mut(&mut engine.policies).unwrap();
-        let policies = policies.get_mut();
+        let mut policies = HashMap::new();
         policies.insert(
-            "policy.default.v1".to_string(),
+            policy_const::DEFAULT_POLICY_ID.to_string(),
             LoadedPolicy {
                 policy: default_policy,
                 state: PolicyState::Active,
             },
         );
         policies.insert(
-            "policy.jp.v1".to_string(),
+            policy_const::JP_POLICY_ID.to_string(),
             LoadedPolicy {
                 policy: jp_policy,
                 state: PolicyState::Active,
             },
         );
 
-        engine
+        Self {
+            policies: Arc::new(RwLock::new(policies)),
+            default_policy_id: policy_const::DEFAULT_POLICY_ID.to_string(),
+        }
     }
 
     /// Get current timestamp
@@ -118,17 +117,17 @@ impl PolicyEngine {
                         condition_type: ConditionType::FieldMatch.into(),
                         field_path: "$.credential".to_string(),
                         operator: Operator::Equals.into(),
-                        value: Some(condition::Value::StringValue("null".to_string())),
+                        value: Some(condition::Value::StringValue("false".to_string())),
                         sub_conditions: vec![],
                         logical_operator: LogicalOperator::Unspecified.into(),
                     }),
                     action: Some(Action {
                         action_type: ActionType::Reject.into(),
                         parameters: HashMap::new(),
-                        http_status: 401,
+                        http_status: policy_const::http_status::UNAUTHORIZED,
                         error_message: "Valid human credential required".to_string(),
                     }),
-                    priority: 100,
+                    priority: policy_const::priority::REQUIRE_CREDENTIAL,
                     enabled: true,
                     tags: vec!["security".to_string(), "credential".to_string()],
                 },
@@ -141,7 +140,9 @@ impl PolicyEngine {
                         condition_type: ConditionType::CapabilityCheck.into(),
                         field_path: "$.credential.capability.total".to_string(),
                         operator: Operator::LessThan.into(),
-                        value: Some(condition::Value::DoubleValue(0.5)),
+                        value: Some(condition::Value::DoubleValue(
+                            policy_const::CAPABILITY_THROTTLE_THRESHOLD,
+                        )),
                         sub_conditions: vec![],
                         logical_operator: LogicalOperator::Unspecified.into(),
                     }),
@@ -149,13 +150,16 @@ impl PolicyEngine {
                         action_type: ActionType::RateLimit.into(),
                         parameters: {
                             let mut p = HashMap::new();
-                            p.insert("requests_per_minute".to_string(), "10".to_string());
+                            p.insert(
+                                "requests_per_minute".to_string(),
+                                crate::constants::rate_limit::LOW_CAPABILITY_RPM.to_string(),
+                            );
                             p
                         },
-                        http_status: 429,
+                        http_status: policy_const::http_status::TOO_MANY_REQUESTS,
                         error_message: "Rate limit exceeded for low capability users".to_string(),
                     }),
-                    priority: 50,
+                    priority: policy_const::priority::RATE_LIMIT,
                     enabled: true,
                     tags: vec!["rate_limit".to_string(), "capability".to_string()],
                 },
@@ -171,7 +175,7 @@ impl PolicyEngine {
                         http_status: 0,
                         error_message: String::new(),
                     }),
-                    priority: 10,
+                    priority: policy_const::priority::AUDIT_BASIC,
                     enabled: true,
                     tags: vec!["audit".to_string()],
                 },
@@ -185,7 +189,7 @@ impl PolicyEngine {
                         field_path: "$.payload.messages[*].content".to_string(),
                         operator: Operator::MatchesRegex.into(),
                         value: Some(condition::Value::StringValue(
-                            r"(?i)(how to (make|build|create) (bomb|weapon|virus))".to_string(),
+                            policy_const::patterns::DANGEROUS_CONTENT.to_string(),
                         )),
                         sub_conditions: vec![],
                         logical_operator: LogicalOperator::Unspecified.into(),
@@ -193,10 +197,10 @@ impl PolicyEngine {
                     action: Some(Action {
                         action_type: ActionType::Reject.into(),
                         parameters: HashMap::new(),
-                        http_status: 403,
+                        http_status: policy_const::http_status::FORBIDDEN,
                         error_message: "Request blocked by safety policy".to_string(),
                     }),
-                    priority: 90,
+                    priority: policy_const::priority::BLOCK_DANGEROUS,
                     enabled: true,
                     tags: vec!["safety".to_string(), "content_filter".to_string()],
                 },
@@ -212,7 +216,7 @@ impl PolicyEngine {
                         http_status: 0,
                         error_message: String::new(),
                     }),
-                    priority: 1,
+                    priority: policy_const::priority::DEFAULT_ALLOW,
                     enabled: true,
                     tags: vec!["default".to_string()],
                 },
@@ -258,14 +262,17 @@ impl PolicyEngine {
                         action_type: ActionType::Log.into(),
                         parameters: {
                             let mut p = HashMap::new();
-                            p.insert("retention_days".to_string(), "365".to_string());
+                            p.insert(
+                                "retention_days".to_string(),
+                                policy_const::retention::JP_COMPLIANCE_DAYS.to_string(),
+                            );
                             p.insert("include_pii_hash".to_string(), "true".to_string());
                             p
                         },
                         http_status: 0,
                         error_message: String::new(),
                     }),
-                    priority: 15,
+                    priority: policy_const::priority::AUDIT_ENHANCED,
                     enabled: true,
                     tags: vec![
                         "audit".to_string(),
@@ -290,7 +297,7 @@ impl PolicyEngine {
                                 field_path: "$.payload.messages[*].content".to_string(),
                                 operator: Operator::MatchesRegex.into(),
                                 value: Some(condition::Value::StringValue(
-                                    r"(?i)(医療|金融|法律|個人情報)".to_string(),
+                                    policy_const::patterns::JP_SENSITIVE_CONTENT.to_string(),
                                 )),
                                 sub_conditions: vec![],
                                 logical_operator: LogicalOperator::Unspecified.into(),
@@ -299,7 +306,9 @@ impl PolicyEngine {
                                 condition_type: ConditionType::CapabilityCheck.into(),
                                 field_path: "$.credential.capability.total".to_string(),
                                 operator: Operator::LessThan.into(),
-                                value: Some(condition::Value::DoubleValue(0.7)),
+                                value: Some(condition::Value::DoubleValue(
+                                    policy_const::JP_SENSITIVE_CAPABILITY_THRESHOLD,
+                                )),
                                 sub_conditions: vec![],
                                 logical_operator: LogicalOperator::Unspecified.into(),
                             },
@@ -309,12 +318,12 @@ impl PolicyEngine {
                     action: Some(Action {
                         action_type: ActionType::Reject.into(),
                         parameters: HashMap::new(),
-                        http_status: 403,
+                        http_status: policy_const::http_status::FORBIDDEN,
                         error_message:
                             "Higher capability certification required for sensitive operations"
                                 .to_string(),
                     }),
-                    priority: 80,
+                    priority: policy_const::priority::JP_HIGH_CAPABILITY,
                     enabled: true,
                     tags: vec![
                         "capability".to_string(),
@@ -349,7 +358,7 @@ impl PolicyEngine {
 
         // Determine which policy to use
         let policy_id = if context.jurisdiction.as_deref() == Some("JP") {
-            "policy.jp.v1"
+            policy_const::JP_POLICY_ID
         } else {
             &self.default_policy_id
         };
@@ -448,7 +457,8 @@ impl PolicyEngine {
             None => return true, // No condition = always match
         };
 
-        match ConditionType::try_from(condition.condition_type).unwrap_or(ConditionType::Unspecified)
+        match ConditionType::try_from(condition.condition_type)
+            .unwrap_or(ConditionType::Unspecified)
         {
             ConditionType::FieldMatch => self.evaluate_field_match(condition, context),
             ConditionType::ContentPattern => self.evaluate_content_pattern(condition, context),
@@ -480,8 +490,7 @@ impl PolicyEngine {
     /// Evaluate field match condition
     fn evaluate_field_match(&self, condition: &Condition, context: &RequestContext) -> bool {
         let field_path = &condition.field_path;
-        let operator =
-            Operator::try_from(condition.operator).unwrap_or(Operator::Unspecified);
+        let operator = Operator::try_from(condition.operator).unwrap_or(Operator::Unspecified);
 
         // Simple field matching (in production: use JSONPath)
         let field_value = match field_path.as_str() {
@@ -530,8 +539,7 @@ impl PolicyEngine {
     /// Evaluate capability check condition
     fn evaluate_capability_check(&self, condition: &Condition, context: &RequestContext) -> bool {
         let threshold = self.get_double_value(condition).unwrap_or(0.0);
-        let operator =
-            Operator::try_from(condition.operator).unwrap_or(Operator::Unspecified);
+        let operator = Operator::try_from(condition.operator).unwrap_or(Operator::Unspecified);
 
         let capability_score = context
             .credential
@@ -676,7 +684,7 @@ mod tests {
         });
 
         let context = RequestContext {
-            request_id: "test-1".to_string(),
+            request_id: RequestId::new("test-1").unwrap(),
             credential: Some(credential),
             payload: None,
             client_ip: None,
@@ -704,7 +712,7 @@ mod tests {
         });
 
         let context = RequestContext {
-            request_id: "test-2".to_string(),
+            request_id: RequestId::new("test-2").unwrap(),
             credential: Some(credential),
             payload: None,
             client_ip: None,
@@ -720,7 +728,7 @@ mod tests {
     async fn test_policy_matches_rules() {
         let engine = PolicyEngine::new();
         let context = RequestContext {
-            request_id: "test-3".to_string(),
+            request_id: RequestId::new("test-3").unwrap(),
             credential: None,
             payload: None,
             client_ip: None,

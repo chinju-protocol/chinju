@@ -89,7 +89,7 @@ impl FrostCoordinator {
             self.total,
             self.threshold,
             frost::keys::IdentifierList::Default,
-            &mut OsRng,
+            OsRng,
         )?;
 
         // Store public key package
@@ -193,7 +193,8 @@ impl FrostCoordinator {
         }
 
         // Aggregate signature shares
-        let group_signature = frost::aggregate(&signing_package, &signature_shares, &pubkey_package)?;
+        let group_signature =
+            frost::aggregate(&signing_package, &signature_shares, &pubkey_package)?;
 
         // Verify the signature
         pubkey_package
@@ -213,9 +214,8 @@ impl FrostCoordinator {
             .clone()
             .ok_or(FrostError::DkgNotCompleted)?;
 
-        let sig = Signature::deserialize(signature.try_into().map_err(|_| {
-            FrostError::VerificationFailed("Invalid signature length".into())
-        })?)?;
+        let sig = Signature::deserialize(signature)
+            .map_err(|_| FrostError::VerificationFailed("Invalid signature length".into()))?;
 
         match pubkey_package.verifying_key().verify(message, &sig) {
             Ok(_) => Ok(true),
@@ -227,14 +227,16 @@ impl FrostCoordinator {
     ///
     /// This static method allows verification without a full coordinator instance,
     /// useful for verifier-only nodes that just have the group public key.
-    pub fn verify_with_pubkey(pubkey_bytes: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, FrostError> {
-        let verifying_key = frost_ed25519::VerifyingKey::deserialize(
-            pubkey_bytes.try_into().map_err(|_| FrostError::VerificationFailed("Invalid public key length".into()))?
-        ).map_err(|e| FrostError::VerificationFailed(e.to_string()))?;
+    pub fn verify_with_pubkey(
+        pubkey_bytes: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, FrostError> {
+        let verifying_key = frost_ed25519::VerifyingKey::deserialize(pubkey_bytes)
+            .map_err(|e| FrostError::VerificationFailed(e.to_string()))?;
 
-        let sig = Signature::deserialize(signature.try_into().map_err(|_| {
-            FrostError::VerificationFailed("Invalid signature length".into())
-        })?)?;
+        let sig = Signature::deserialize(signature)
+            .map_err(|_| FrostError::VerificationFailed("Invalid signature length".into()))?;
 
         match verifying_key.verify(message, &sig) {
             Ok(_) => Ok(true),
@@ -294,16 +296,23 @@ impl FrostParticipant {
 
     /// Get the group public key
     pub fn group_public_key(&self) -> Result<Vec<u8>, FrostError> {
-        Ok(self.public_key_package.verifying_key().serialize()?.to_vec())
+        Ok(self
+            .public_key_package
+            .verifying_key()
+            .serialize()?
+            .to_vec())
     }
 
     /// Verify a signature
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool, FrostError> {
-        let sig = Signature::deserialize(signature.try_into().map_err(|_| {
-            FrostError::VerificationFailed("Invalid signature length".into())
-        })?)?;
+        let sig = Signature::deserialize(signature)
+            .map_err(|_| FrostError::VerificationFailed("Invalid signature length".into()))?;
 
-        match self.public_key_package.verifying_key().verify(message, &sig) {
+        match self
+            .public_key_package
+            .verifying_key()
+            .verify(message, &sig)
+        {
             Ok(_) => Ok(true),
             Err(_) => Ok(false),
         }
@@ -374,6 +383,9 @@ mod tests {
         let signer_ids: Vec<_> = shares.iter().take(2).map(|(id, _)| *id).collect();
 
         let result = coordinator.sign(&signer_ids, message);
-        assert!(matches!(result, Err(FrostError::NotEnoughParticipants { .. })));
+        assert!(matches!(
+            result,
+            Err(FrostError::NotEnoughParticipants { .. })
+        ));
     }
 }

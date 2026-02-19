@@ -1,7 +1,9 @@
 //! Signing service implementation
 
 use crate::gen::chinju::common as proto;
-use chinju_core::hardware::{HardwareConfig, HardwareError, HardwareProvider, KeyAlgorithm, KeyHandle};
+use chinju_core::hardware::{
+    HardwareConfig, HardwareError, HardwareProvider, KeyAlgorithm, KeyHandle,
+};
 use chinju_core::types as core;
 use std::sync::Arc;
 use thiserror::Error;
@@ -83,10 +85,7 @@ impl SigningService {
     ) -> Result<KeyMetadata, SigningError> {
         info!(key_id = %key_id, algorithm = ?algorithm, "Generating signing key");
 
-        let handle = self
-            .provider
-            .hsm()
-            .generate_key_pair(algorithm, key_id)?;
+        let handle = self.provider.hsm().generate_key_pair(algorithm, key_id)?;
 
         let metadata = KeyMetadata {
             key_id: key_id.to_string(),

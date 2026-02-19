@@ -42,12 +42,20 @@ OPENAI_API_KEY=sk-xxx cargo run --release --bin chinju-sidecar
 
 ### Environment Variables
 
+`.env` loading order:
+1. `CHINJU_ENV_FILE` (if set)
+2. Current directory / parent directories (`dotenv` default behavior)
+3. `chinju-sidecar/.env` (monorepo root fallback)
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RUST_LOG` | `info` | Log level (trace, debug, info, warn, error) |
 | `CHINJU_GRPC_PORT` | `50051` | gRPC server port |
 | `CHINJU_HTTP_PORT` | `8080` | HTTP server port (OpenAI compatible) |
 | `CHINJU_AUDIT_PATH` | `./audit.jsonl` | Audit log file path |
+| `CHINJU_AUDIT_ARCHIVE` | `./data/audit/archive` | Audit archive directory |
+| `CHINJU_AUDIT_ARCHIVE_HMAC_KEY` | - | Optional HMAC key for archive signature generation |
+| `CHINJU_ENV_FILE` | - | Optional explicit path to `.env` file |
 | `OPENAI_API_KEY` | - | OpenAI API key (optional, enables real API) |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI API base URL |
 

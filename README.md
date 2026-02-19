@@ -768,7 +768,9 @@ L5 (Full Hardware) - OTP/eFuse/QRNG完全統合
 
 ### 貢献の始め方
 
-詳細は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。
+詳細は [CONTRIBUTING.md](./CONTRIBUTING.md)（日本語）または [CONTRIBUTING_EN.md](./CONTRIBUTING_EN.md)（English）を参照してください。  
+Issue / PR は日本語・英語のどちらでも歓迎します。
+コミュニティ規範は [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)（English）を参照してください。
 
 | 貢献タイプ | 最初の一歩 | 難易度 |
 |:--|:--|:--|

@@ -134,7 +134,11 @@ pub struct Ceremony {
 
 impl Ceremony {
     /// Create a new ceremony
-    pub fn new(ceremony_id: impl Into<String>, threshold: u16, total: u16) -> Result<Self, FrostError> {
+    pub fn new(
+        ceremony_id: impl Into<String>,
+        threshold: u16,
+        total: u16,
+    ) -> Result<Self, FrostError> {
         if threshold == 0 || threshold > total {
             return Err(FrostError::InvalidThreshold);
         }
@@ -161,10 +165,7 @@ impl Ceremony {
     }
 
     /// Restore ceremony from record
-    pub fn from_record(
-        record: CeremonyRecord,
-        storage_path: impl Into<String>,
-    ) -> Self {
+    pub fn from_record(record: CeremonyRecord, storage_path: impl Into<String>) -> Self {
         Self {
             record,
             coordinator: None,
@@ -212,8 +213,10 @@ impl Ceremony {
             ready: false,
         };
 
-        self.record
-            .add_note(format!("Participant {} registered: {}", id, participant.name));
+        self.record.add_note(format!(
+            "Participant {} registered: {}",
+            id, participant.name
+        ));
         self.record.participants.push(participant);
 
         Ok(id)
@@ -361,7 +364,8 @@ impl Ceremony {
         self.record.phase = CeremonyPhase::Failed;
         self.record.completed_at = Some(chrono::Utc::now().timestamp());
         self.record.error = Some(error_msg.clone());
-        self.record.add_note(format!("Ceremony failed: {}", error_msg));
+        self.record
+            .add_note(format!("Ceremony failed: {}", error_msg));
     }
 
     /// Get key shares (for distribution to participants)
@@ -405,9 +409,8 @@ impl Ceremony {
             return Err(FrostError::FrostLib("No key shares found".into()));
         }
 
-        let pubkey_pkg = pubkey_pkg.ok_or_else(|| {
-            FrostError::FrostLib("No public key package found".into())
-        })?;
+        let pubkey_pkg =
+            pubkey_pkg.ok_or_else(|| FrostError::FrostLib("No public key package found".into()))?;
 
         // Import into coordinator
         coordinator.import_key_packages(key_packages, pubkey_pkg)?;
@@ -430,7 +433,11 @@ impl Ceremony {
 
     /// Get all key share IDs
     pub fn key_share_ids(&self) -> Vec<u16> {
-        self.key_store.all().iter().map(|s| s.participant_id).collect()
+        self.key_store
+            .all()
+            .iter()
+            .map(|s| s.participant_id)
+            .collect()
     }
 }
 

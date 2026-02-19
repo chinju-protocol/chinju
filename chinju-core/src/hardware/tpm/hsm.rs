@@ -18,8 +18,8 @@ use tss_esapi::{
         resource_handles::Hierarchy,
     },
     structures::{
-        Public, PublicBuilder, PublicKeyRsa, PublicRsaParametersBuilder, RsaScheme,
-        RsaSignature, SymmetricDefinitionObject,
+        Public, PublicBuilder, PublicKeyRsa, PublicRsaParametersBuilder, RsaScheme, RsaSignature,
+        SymmetricDefinitionObject,
     },
 };
 
@@ -62,14 +62,18 @@ impl TpmHsm {
 
     /// Get PCR operations
     pub fn pcr_ops(&self) -> Result<PcrOpsGuard, HardwareError> {
-        let context = self.context.write()
+        let context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
         Ok(PcrOpsGuard { _context: context })
     }
 
     /// Read PCR value
     pub fn read_pcr(&self, index: u8, bank: PcrBank) -> Result<PcrValue, HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
         let mut ops = PcrOps::new(&mut context);
         ops.read(index, bank)
@@ -78,7 +82,9 @@ impl TpmHsm {
 
     /// Extend PCR
     pub fn extend_pcr(&self, index: u8, bank: PcrBank, data: &[u8]) -> Result<(), HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
         let mut ops = PcrOps::new(&mut context);
         ops.extend(index, bank, data)
@@ -123,14 +129,18 @@ impl TpmHsm {
 
         // Placeholder: simple extraction
         if sealed_data.len() < 8 || &sealed_data[0..4] != b"TPMS" {
-            return Err(HardwareError::InvalidData("Invalid sealed data format".to_string()));
+            return Err(HardwareError::InvalidData(
+                "Invalid sealed data format".to_string(),
+            ));
         }
 
         let pcr_count = u32::from_le_bytes(sealed_data[4..8].try_into().unwrap()) as usize;
         let data_start = 8 + pcr_count + 1;
 
         if sealed_data.len() <= data_start {
-            return Err(HardwareError::InvalidData("Sealed data too short".to_string()));
+            return Err(HardwareError::InvalidData(
+                "Sealed data too short".to_string(),
+            ));
         }
 
         Ok(sealed_data[data_start..].to_vec())
@@ -138,15 +148,17 @@ impl TpmHsm {
 
     /// Get remote attestation quote
     pub fn get_quote(&self, nonce: &[u8], pcr_indices: &[u8]) -> Result<Vec<u8>, HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
         let mut ops = PcrOps::new(&mut context);
 
-        let quote = ops.quote(pcr_indices, PcrBank::Sha256, nonce)
+        let quote = ops
+            .quote(pcr_indices, PcrBank::Sha256, nonce)
             .map_err(|e| HardwareError::AttestationFailed(e.to_string()))?;
 
-        serde_json::to_vec(&quote)
-            .map_err(|e| HardwareError::InvalidData(e.to_string()))
+        serde_json::to_vec(&quote).map_err(|e| HardwareError::InvalidData(e.to_string()))
     }
 }
 
@@ -158,7 +170,10 @@ pub struct PcrOpsGuard<'a> {
 impl TrustRoot for TpmHsm {
     fn is_hardware_backed(&self) -> bool {
         let context = self.context.read().unwrap();
-        !matches!(context.config().interface, super::context::TpmInterface::Socket { .. })
+        !matches!(
+            context.config().interface,
+            super::context::TpmInterface::Socket { .. }
+        )
     }
 
     fn security_level(&self) -> TrustLevel {
@@ -170,10 +185,13 @@ impl TrustRoot for TpmHsm {
     }
 
     fn get_attestation(&self) -> Result<HardwareAttestation, HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
-        let info = context.get_manufacturer_info()
+        let info = context
+            .get_manufacturer_info()
             .map_err(|e| HardwareError::AttestationFailed(e.to_string()))?;
 
         let hardware_type = if info.is_software {
@@ -202,7 +220,9 @@ impl HardwareSecurityModule for TpmHsm {
 
         match algorithm {
             KeyAlgorithm::Rsa4096 => {
-                let mut context = self.context.write()
+                let mut context = self
+                    .context
+                    .write()
                     .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
                 // Build RSA key template
@@ -235,18 +255,14 @@ impl HardwareSecurityModule for TpmHsm {
                     .map_err(|e| HardwareError::InvalidData(e.to_string()))?;
 
                 // Create primary key under owner hierarchy
-                let key_result = context.context_mut()
+                let key_result = context
+                    .context_mut()
                     .execute_with_nullauth_session(|ctx| {
-                        ctx.create_primary(
-                            Hierarchy::Owner,
-                            public,
-                            None,
-                            None,
-                            None,
-                            None,
-                        )
+                        ctx.create_primary(Hierarchy::Owner, public, None, None, None, None)
                     })
-                    .map_err(|e| HardwareError::CommunicationError(format!("Key creation failed: {}", e)))?;
+                    .map_err(|e| {
+                        HardwareError::CommunicationError(format!("Key creation failed: {}", e))
+                    })?;
 
                 // Store the handle
                 {
@@ -278,11 +294,13 @@ impl HardwareSecurityModule for TpmHsm {
                 .ok_or_else(|| HardwareError::KeyNotFound(key_handle.0.clone()))?
         };
 
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
         // Hash the data
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(data);
         let digest = hasher.finalize();
@@ -291,7 +309,8 @@ impl HardwareSecurityModule for TpmHsm {
             .map_err(|e| HardwareError::InvalidData(e.to_string()))?;
 
         // Sign with TPM
-        let signature = context.context_mut()
+        let signature = context
+            .context_mut()
             .execute_with_nullauth_session(|ctx| {
                 ctx.sign(
                     tpm_handle,
@@ -307,7 +326,11 @@ impl HardwareSecurityModule for TpmHsm {
             tss_esapi::structures::Signature::RsaSsa(rsa_sig) => {
                 rsa_sig.signature().as_bytes().to_vec()
             }
-            _ => return Err(HardwareError::InvalidData("Unexpected signature type".to_string())),
+            _ => {
+                return Err(HardwareError::InvalidData(
+                    "Unexpected signature type".to_string(),
+                ))
+            }
         };
 
         // Get public key
@@ -336,11 +359,13 @@ impl HardwareSecurityModule for TpmHsm {
                 .ok_or_else(|| HardwareError::KeyNotFound(key_handle.0.clone()))?
         };
 
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
         // Hash the data
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(data);
         let digest = hasher.finalize();
@@ -353,17 +378,13 @@ impl HardwareSecurityModule for TpmHsm {
             .map_err(|e| HardwareError::InvalidData(e.to_string()))?;
 
         let tpm_signature = tss_esapi::structures::Signature::RsaSsa(
-            tss_esapi::structures::SignatureRsa::new(
-                HashingAlgorithm::Sha256,
-                rsa_sig,
-            )
+            tss_esapi::structures::SignatureRsa::new(HashingAlgorithm::Sha256, rsa_sig),
         );
 
         // Verify with TPM
-        let result = context.context_mut()
-            .execute_with_nullauth_session(|ctx| {
-                ctx.verify_signature(tpm_handle, digest_tpm, tpm_signature)
-            });
+        let result = context.context_mut().execute_with_nullauth_session(|ctx| {
+            ctx.verify_signature(tpm_handle, digest_tpm, tpm_signature)
+        });
 
         match result {
             Ok(_) => Ok(true),
@@ -380,21 +401,22 @@ impl HardwareSecurityModule for TpmHsm {
                 .ok_or_else(|| HardwareError::KeyNotFound(key_handle.0.clone()))?
         };
 
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
-        let (public, _, _) = context.context_mut()
-            .execute_with_nullauth_session(|ctx| {
-                ctx.read_public(tpm_handle)
-            })
+        let (public, _, _) = context
+            .context_mut()
+            .execute_with_nullauth_session(|ctx| ctx.read_public(tpm_handle))
             .map_err(|e| HardwareError::CommunicationError(e.to_string()))?;
 
         // Extract public key bytes based on type
         match public {
-            Public::Rsa { unique, .. } => {
-                Ok(unique.as_bytes().to_vec())
-            }
-            _ => Err(HardwareError::InvalidData("Unsupported key type".to_string())),
+            Public::Rsa { unique, .. } => Ok(unique.as_bytes().to_vec()),
+            _ => Err(HardwareError::InvalidData(
+                "Unsupported key type".to_string(),
+            )),
         }
     }
 
@@ -406,13 +428,14 @@ impl HardwareSecurityModule for TpmHsm {
                 .ok_or_else(|| HardwareError::KeyNotFound(key_handle.0.clone()))?
         };
 
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
-        context.context_mut()
-            .execute_with_nullauth_session(|ctx| {
-                ctx.flush_context(tpm_handle.into())
-            })
+        context
+            .context_mut()
+            .execute_with_nullauth_session(|ctx| ctx.flush_context(tpm_handle.into()))
             .map_err(|e| HardwareError::CommunicationError(e.to_string()))?;
 
         info!(key_id = %key_handle.0, "Erased key from TPM");
@@ -427,13 +450,14 @@ impl HardwareSecurityModule for TpmHsm {
 
 impl RandomSource for TpmHsm {
     fn generate(&self, length: usize) -> Result<Vec<u8>, HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
-        let random_bytes = context.context_mut()
-            .execute_without_session(|ctx| {
-                ctx.get_random(length)
-            })
+        let random_bytes = context
+            .context_mut()
+            .execute_without_session(|ctx| ctx.get_random(length))
             .map_err(|e| HardwareError::CommunicationError(e.to_string()))?;
 
         Ok(random_bytes.as_bytes().to_vec())
@@ -452,10 +476,13 @@ impl RandomSource for TpmHsm {
     }
 
     fn health_check(&self) -> Result<bool, HardwareError> {
-        let mut context = self.context.write()
+        let mut context = self
+            .context
+            .write()
             .map_err(|_| HardwareError::CommunicationError("Lock poisoned".to_string()))?;
 
-        context.self_test(false)
+        context
+            .self_test(false)
             .map_err(|e| HardwareError::AttestationFailed(e.to_string()))
     }
 }

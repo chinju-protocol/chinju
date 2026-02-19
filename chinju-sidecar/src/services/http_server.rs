@@ -9,10 +9,11 @@
 //! - GET  /health - Health check
 //! - GET  /metrics - Prometheus metrics
 
+use crate::ids::{CredentialId, RequestId};
+use crate::services::audit::AuditLogger;
 use crate::services::metrics::MetricsCollector;
 use crate::services::openai_client::{ClientError, OpenAiClient};
 use crate::services::openai_types::*;
-use crate::services::audit::AuditLogger;
 use axum::{
     extract::{Json, State},
     http::StatusCode,
@@ -79,7 +80,10 @@ async fn metrics_handler(State(state): State<Arc<HttpServerState>>) -> impl Into
     let metrics = state.metrics.render_metrics().await;
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; charset=utf-8",
+        )],
         metrics,
     )
 }
@@ -102,26 +106,28 @@ pub async fn start_http_server(
 /// CHINJU authentication extracted from headers
 #[derive(Debug)]
 struct ChinjuAuth {
-    credential_id: Option<String>,
+    credential_id: Option<CredentialId>,
     capability_score: Option<f64>,
 }
 
 impl ChinjuAuth {
-    fn from_headers(headers: &axum::http::HeaderMap) -> Self {
+    fn from_headers(headers: &axum::http::HeaderMap) -> Result<Self, AppError> {
         let credential_id = headers
             .get("X-Chinju-Credential-Id")
             .and_then(|v| v.to_str().ok())
-            .map(String::from);
+            .map(|raw| CredentialId::new(raw.to_string()))
+            .transpose()
+            .map_err(|e| AppError::bad_request(e.to_string()))?;
 
         let capability_score = headers
             .get("X-Chinju-Capability-Score")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.parse().ok());
 
-        Self {
+        Ok(Self {
             credential_id,
             capability_score,
-        }
+        })
     }
 }
 
@@ -131,8 +137,9 @@ async fn chat_completions(
     headers: axum::http::HeaderMap,
     Json(request): Json<ChatCompletionRequest>,
 ) -> Result<Response, AppError> {
-    let auth = ChinjuAuth::from_headers(&headers);
-    let request_id = uuid::Uuid::new_v4().to_string();
+    let auth = ChinjuAuth::from_headers(&headers)?;
+    let request_id = RequestId::new(uuid::Uuid::new_v4().to_string())
+        .expect("uuid-based request id must be valid");
 
     // Increment request count
     {
@@ -156,7 +163,7 @@ async fn chat_completions(
         .audit_logger
         .log_ai_request(
             &request_id,
-            auth.credential_id.as_deref(),
+            auth.credential_id.as_ref(),
             auth.capability_score,
             &request_bytes,
             &request.model,
@@ -177,17 +184,15 @@ async fn chat_completions(
         // Streaming response
         match client.chat_completion_stream(&request).await {
             Ok(stream) => {
-                let sse_stream = stream.map(|result| {
-                    match result {
-                        Ok(chunk) => {
-                            let data = serde_json::to_string(&chunk).unwrap_or_default();
-                            Ok::<_, Infallible>(axum::response::sse::Event::default().data(data))
-                        }
-                        Err(e) => {
-                            let error = OpenAiError::server_error(e.to_string());
-                            let data = serde_json::to_string(&error).unwrap_or_default();
-                            Ok(axum::response::sse::Event::default().data(data))
-                        }
+                let sse_stream = stream.map(|result| match result {
+                    Ok(chunk) => {
+                        let data = serde_json::to_string(&chunk).unwrap_or_default();
+                        Ok::<_, Infallible>(axum::response::sse::Event::default().data(data))
+                    }
+                    Err(e) => {
+                        let error = OpenAiError::server_error(e.to_string());
+                        let data = serde_json::to_string(&error).unwrap_or_default();
+                        Ok(axum::response::sse::Event::default().data(data))
                     }
                 });
 
@@ -313,7 +318,10 @@ async fn root() -> Json<serde_json::Value> {
 }
 
 /// Generate mock response for testing without OpenAI API key
-fn mock_response(request_id: &str, request: &ChatCompletionRequest) -> Json<ChatCompletionResponse> {
+fn mock_response(
+    request_id: &RequestId,
+    request: &ChatCompletionRequest,
+) -> Json<ChatCompletionResponse> {
     let content = format!(
         "[CHINJU Mock Response]\n\
          Model: {}\n\
@@ -359,6 +367,14 @@ pub struct AppError {
 }
 
 impl AppError {
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        let body = OpenAiError::new(message.into(), "invalid_request_error");
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            body,
+        }
+    }
+
     pub fn from_client_error(error: ClientError) -> Self {
         let status = match error.to_status_code() {
             401 => StatusCode::UNAUTHORIZED,
@@ -492,5 +508,33 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_chat_completions_rejects_invalid_credential_header() {
+        let state = create_test_state();
+        let app = create_router(state);
+
+        let request_body = serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                {"role": "user", "content": "Hello!"}
+            ]
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/chat/completions")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header("X-Chinju-Credential-Id", "invalid header value")
+                    .body(Body::from(serde_json::to_string(&request_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }

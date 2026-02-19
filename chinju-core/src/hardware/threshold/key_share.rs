@@ -132,7 +132,7 @@ impl KeyShareStore {
             let entry = entry.map_err(|e| FrostError::FrostLib(e.to_string()))?;
             let path = entry.path();
 
-            if path.extension().map_or(false, |ext| ext == "json") {
+            if path.extension().is_some_and(|ext| ext == "json") {
                 let share = KeyShare::load_from_file(&path)?;
                 store.shares.insert(share.participant_id, share);
             }
@@ -149,8 +149,9 @@ impl KeyShareStore {
         if let Some(ref storage_path) = self.storage_path {
             let path = Path::new(storage_path);
             if !path.exists() {
-                fs::create_dir_all(path)
-                    .map_err(|e| FrostError::FrostLib(format!("Failed to create directory: {}", e)))?;
+                fs::create_dir_all(path).map_err(|e| {
+                    FrostError::FrostLib(format!("Failed to create directory: {}", e))
+                })?;
             }
             let file_path = path.join(format!("share_{}.json", participant_id));
             share.save_to_file(file_path)?;
@@ -226,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_key_share_store() {
-        let mut store = KeyShareStore::new();
+        let store = KeyShareStore::new();
         assert!(store.is_empty());
 
         // We can't create real KeyShares without FROST keygen,

@@ -60,6 +60,7 @@ dotenvy = "0.15"
 
 # P4: Audit - Hash
 sha2 = "0.10"
+hmac = "0.12"
 hex = "0.4"
 
 # Tower

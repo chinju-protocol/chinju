@@ -211,10 +211,7 @@ impl SurvivalAttentionService {
     /// Compute survival scores for a list of token features
     ///
     /// Each token is represented as (diversity_n, yohaku_mu, delta)
-    pub async fn compute_scores(
-        &self,
-        token_features: &[(f64, f64, f64)],
-    ) -> Vec<SurvivalScore> {
+    pub async fn compute_scores(&self, token_features: &[(f64, f64, f64)]) -> Vec<SurvivalScore> {
         let config = self.config.read().await;
         let mu_c = config.scorer.mu_c;
 
@@ -350,8 +347,8 @@ mod tests {
         let service = SurvivalAttentionService::new();
 
         let features = vec![
-            (2.0, 1.0, 0.1),  // Good token
-            (0.5, 0.3, 0.8),  // Bad token
+            (2.0, 1.0, 0.1),   // Good token
+            (0.5, 0.3, 0.8),   // Bad token
             (10.0, 2.0, 0.01), // Great token
         ];
 
@@ -452,7 +449,9 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_adjust_alpha() {
         use crate::gen::chinju::api::survival_attention::survival_attention_service_server::SurvivalAttentionService as SurvivalAttentionServiceTrait;
-        use crate::gen::chinju::survival_attention::{AdjustAlphaRequest, RiskLevel as ProtoRiskLevel};
+        use crate::gen::chinju::survival_attention::{
+            AdjustAlphaRequest, RiskLevel as ProtoRiskLevel,
+        };
 
         let service = SurvivalAttentionServiceImpl::new(super::SurvivalAttentionService::new());
         let request = tonic::Request::new(AdjustAlphaRequest {
@@ -472,13 +471,13 @@ mod tests {
 // =============================================================================
 
 use crate::gen::chinju::api::survival_attention::survival_attention_service_server::SurvivalAttentionService as SurvivalAttentionServiceTrait;
+use crate::gen::chinju::common::Timestamp;
 use crate::gen::chinju::survival_attention::{
     AdjustAlphaRequest, AdjustAlphaResponse, ComputeScoresRequest, RiskLevel as ProtoRiskLevel,
     SurvivalAttentionRequest, SurvivalAttentionResponse, SurvivalScore as ProtoSurvivalScore,
     SurvivalScorerConfig as ProtoScorerConfig, TokenSurvivalScores, UpdateScorerRequest,
     UpdateScorerResponse,
 };
-use crate::gen::chinju::common::Timestamp;
 use tonic::{Request, Response, Status};
 
 /// gRPC service implementation wrapper for SurvivalAttentionService
@@ -533,7 +532,10 @@ impl SurvivalAttentionServiceTrait for SurvivalAttentionServiceImpl {
         request: Request<ComputeScoresRequest>,
     ) -> Result<Response<TokenSurvivalScores>, Status> {
         let req = request.into_inner();
-        info!(input_len = req.input_text.len(), "Computing survival scores via gRPC");
+        info!(
+            input_len = req.input_text.len(),
+            "Computing survival scores via gRPC"
+        );
 
         // Simple tokenization (split by whitespace)
         let tokens: Vec<&str> = req.input_text.split_whitespace().collect();
@@ -606,10 +608,7 @@ impl SurvivalAttentionServiceTrait for SurvivalAttentionServiceImpl {
             "Adjusting alpha via gRPC"
         );
 
-        let (previous_alpha, new_alpha) = self
-            .inner
-            .adjust_alpha(task_type, risk_level)
-            .await;
+        let (previous_alpha, new_alpha) = self.inner.adjust_alpha(task_type, risk_level).await;
 
         let reason = match (task_type, risk_level) {
             (Some(t), Some(r)) => format!("task={}, risk={:?}", t, r),

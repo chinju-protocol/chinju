@@ -150,22 +150,37 @@ impl ChallengeGenerator {
     }
 
     /// Generate a set of challenges for a test session
-    pub fn generate_challenge_set(&self, count_per_type: usize) -> Vec<(ChallengeType, ChallengeData)> {
+    pub fn generate_challenge_set(
+        &self,
+        count_per_type: usize,
+    ) -> Vec<(ChallengeType, ChallengeData)> {
         let mut challenges = Vec::new();
 
         // Select challenges from each category
         for i in 0..count_per_type {
             if let Some(c) = self.independence_pool.get(i % self.independence_pool.len()) {
-                challenges.push((ChallengeType::DecisionMaking, ChallengeData::Independence(c.clone())));
+                challenges.push((
+                    ChallengeType::DecisionMaking,
+                    ChallengeData::Independence(c.clone()),
+                ));
             }
             if let Some(c) = self.detection_pool.get(i % self.detection_pool.len()) {
-                challenges.push((ChallengeType::AnomalyDetection, ChallengeData::Detection(c.clone())));
+                challenges.push((
+                    ChallengeType::AnomalyDetection,
+                    ChallengeData::Detection(c.clone()),
+                ));
             }
             if let Some(c) = self.alternatives_pool.get(i % self.alternatives_pool.len()) {
-                challenges.push((ChallengeType::AlternativeGeneration, ChallengeData::Alternatives(c.clone())));
+                challenges.push((
+                    ChallengeType::AlternativeGeneration,
+                    ChallengeData::Alternatives(c.clone()),
+                ));
             }
             if let Some(c) = self.critique_pool.get(i % self.critique_pool.len()) {
-                challenges.push((ChallengeType::CriticalAnalysis, ChallengeData::Critique(c.clone())));
+                challenges.push((
+                    ChallengeType::CriticalAnalysis,
+                    ChallengeData::Critique(c.clone()),
+                ));
             }
         }
 
@@ -189,7 +204,10 @@ impl ChallengeGenerator {
                     "ai_suggestion": c.ai_suggestion,
                     "instruction": "Evaluate the AI's suggestion. Should you: ACCEPT, MODIFY, or REJECT it?"
                 });
-                (json.to_string().into_bytes(), 60 + (c.difficulty as u32 * 15))
+                (
+                    json.to_string().into_bytes(),
+                    60 + (c.difficulty as u32 * 15),
+                )
             }
             ChallengeData::Detection(c) => {
                 let json = serde_json::json!({
@@ -197,7 +215,10 @@ impl ChallengeGenerator {
                     "instruction": c.instruction,
                     "data_points": c.data_points
                 });
-                (json.to_string().into_bytes(), 45 + (c.difficulty as u32 * 10))
+                (
+                    json.to_string().into_bytes(),
+                    45 + (c.difficulty as u32 * 10),
+                )
             }
             ChallengeData::Alternatives(c) => {
                 let json = serde_json::json!({
@@ -207,7 +228,10 @@ impl ChallengeGenerator {
                     "min_alternatives": c.min_alternatives,
                     "instruction": format!("Generate at least {} alternative solutions.", c.min_alternatives)
                 });
-                (json.to_string().into_bytes(), 90 + (c.difficulty as u32 * 20))
+                (
+                    json.to_string().into_bytes(),
+                    90 + (c.difficulty as u32 * 20),
+                )
             }
             ChallengeData::Critique(c) => {
                 let json = serde_json::json!({
@@ -215,7 +239,10 @@ impl ChallengeGenerator {
                     "proposal": c.proposal,
                     "instruction": "Analyze this proposal. Identify strengths and weaknesses."
                 });
-                (json.to_string().into_bytes(), 120 + (c.difficulty as u32 * 15))
+                (
+                    json.to_string().into_bytes(),
+                    120 + (c.difficulty as u32 * 15),
+                )
             }
         };
 
@@ -347,20 +374,21 @@ impl ChallengeGenerator {
     fn default_critique_challenges() -> Vec<CritiqueChallenge> {
         vec![
             CritiqueChallenge {
-                proposal: "Implement facial recognition for all building access to improve security.".to_string(),
+                proposal:
+                    "Implement facial recognition for all building access to improve security."
+                        .to_string(),
                 hidden_flaws: vec![
                     "Privacy concerns".to_string(),
                     "Bias in recognition accuracy".to_string(),
                     "Single point of failure".to_string(),
                 ],
-                hidden_strengths: vec![
-                    "Contactless entry".to_string(),
-                    "Audit trail".to_string(),
-                ],
+                hidden_strengths: vec!["Contactless entry".to_string(), "Audit trail".to_string()],
                 difficulty: 3,
             },
             CritiqueChallenge {
-                proposal: "Allow AI to automatically approve all low-value transactions under $100.".to_string(),
+                proposal:
+                    "Allow AI to automatically approve all low-value transactions under $100."
+                        .to_string(),
                 hidden_flaws: vec![
                     "Aggregation attacks".to_string(),
                     "No human oversight".to_string(),
@@ -373,7 +401,8 @@ impl ChallengeGenerator {
                 difficulty: 3,
             },
             CritiqueChallenge {
-                proposal: "Store all user passwords in plaintext for easier password recovery.".to_string(),
+                proposal: "Store all user passwords in plaintext for easier password recovery."
+                    .to_string(),
                 hidden_flaws: vec![
                     "Security vulnerability".to_string(),
                     "Data breach risk".to_string(),
@@ -424,11 +453,29 @@ impl ResponseEvaluator {
 
         // Check if response matches expected answer
         let content_score = if response_lower.contains("reject") || response_lower.contains("no") {
-            if challenge.correct_assessment == IndependenceAnswer::RejectSuggestion { 1.0 } else { 0.3 }
-        } else if response_lower.contains("modify") || response_lower.contains("change") || response_lower.contains("adjust") {
-            if challenge.correct_assessment == IndependenceAnswer::ModifySuggestion { 1.0 } else { 0.5 }
-        } else if response_lower.contains("accept") || response_lower.contains("yes") || response_lower.contains("agree") {
-            if challenge.correct_assessment == IndependenceAnswer::AcceptSuggestion { 1.0 } else { 0.2 }
+            if challenge.correct_assessment == IndependenceAnswer::RejectSuggestion {
+                1.0
+            } else {
+                0.3
+            }
+        } else if response_lower.contains("modify")
+            || response_lower.contains("change")
+            || response_lower.contains("adjust")
+        {
+            if challenge.correct_assessment == IndependenceAnswer::ModifySuggestion {
+                1.0
+            } else {
+                0.5
+            }
+        } else if response_lower.contains("accept")
+            || response_lower.contains("yes")
+            || response_lower.contains("agree")
+        {
+            if challenge.correct_assessment == IndependenceAnswer::AcceptSuggestion {
+                1.0
+            } else {
+                0.2
+            }
         } else {
             0.4 // Unclear response
         };
@@ -457,21 +504,24 @@ impl ResponseEvaluator {
         let response_lower = response.to_lowercase();
 
         // Try to find index in response
-        let found_index: Option<usize> = (0..challenge.data_points.len())
-            .find(|&i| {
-                response_lower.contains(&format!("{}", i))
-                    || response_lower.contains(&format!("#{}", i))
-                    || response_lower.contains(&format!("entry {}", i))
-                    || response_lower.contains(&format!("item {}", i + 1))
-                    || response_lower.contains(&format!("line {}", i + 1))
-            });
+        let found_index: Option<usize> = (0..challenge.data_points.len()).find(|&i| {
+            response_lower.contains(&format!("{}", i))
+                || response_lower.contains(&format!("#{}", i))
+                || response_lower.contains(&format!("entry {}", i))
+                || response_lower.contains(&format!("item {}", i + 1))
+                || response_lower.contains(&format!("line {}", i + 1))
+        });
 
         let content_score = match (challenge.anomaly_index, found_index) {
             (Some(expected), Some(found)) if expected == found => 1.0,
             (Some(_), Some(_)) => 0.3, // Found something but wrong
             (Some(_), None) if response_lower.contains("no anomaly") => 0.0,
             (Some(_), None) => 0.2,
-            (None, None) if response_lower.contains("no anomaly") || response_lower.contains("none") => 1.0,
+            (None, None)
+                if response_lower.contains("no anomaly") || response_lower.contains("none") =>
+            {
+                1.0
+            }
             (None, Some(_)) => 0.3, // False positive
             (None, _) => 0.4,
         };
@@ -530,11 +580,20 @@ impl ResponseEvaluator {
         let final_score = content_score * 0.75 + time_factor * 0.25;
 
         let feedback = if quantity_score >= 1.0 && quality_score >= 0.6 {
-            format!("Excellent! Generated {} quality alternatives.", alternative_count)
+            format!(
+                "Excellent! Generated {} quality alternatives.",
+                alternative_count
+            )
         } else if quantity_score >= 0.7 {
-            format!("Good effort. Generated {} alternatives, {} were required.", alternative_count, required)
+            format!(
+                "Good effort. Generated {} alternatives, {} were required.",
+                alternative_count, required
+            )
         } else {
-            format!("Need more alternatives. Generated {} but {} were required.", alternative_count, required)
+            format!(
+                "Need more alternatives. Generated {} but {} were required.",
+                alternative_count, required
+            )
         };
 
         (final_score, feedback)
@@ -549,8 +608,17 @@ impl ResponseEvaluator {
         let response_lower = response.to_lowercase();
 
         // Check for identified flaws
-        let flaw_keywords = ["flaw", "problem", "issue", "concern", "weakness", "risk", "danger", "bad"];
-        let strength_keywords = ["strength", "benefit", "advantage", "good", "positive", "pro"];
+        let flaw_keywords = [
+            "flaw", "problem", "issue", "concern", "weakness", "risk", "danger", "bad",
+        ];
+        let strength_keywords = [
+            "strength",
+            "benefit",
+            "advantage",
+            "good",
+            "positive",
+            "pro",
+        ];
 
         let has_flaw_discussion = flaw_keywords.iter().any(|k| response_lower.contains(k));
         let has_strength_discussion = strength_keywords.iter().any(|k| response_lower.contains(k));
@@ -564,10 +632,13 @@ impl ResponseEvaluator {
         };
 
         // Check if specific flaws were identified
-        let flaws_found = challenge.hidden_flaws.iter()
+        let flaws_found = challenge
+            .hidden_flaws
+            .iter()
             .filter(|flaw| {
                 let flaw_lower = flaw.to_lowercase();
-                flaw_lower.split_whitespace()
+                flaw_lower
+                    .split_whitespace()
                     .any(|word| response_lower.contains(word))
             })
             .count();
@@ -641,11 +712,17 @@ impl HumannessDetector {
         // Humans typically have CV between 0.1 and 0.8
         if coefficient_of_variation < MIN_HUMAN_RESPONSE_VARIANCE {
             // Too consistent - likely AI
-            debug!(cv = coefficient_of_variation, "Response variance too low (AI-like)");
+            debug!(
+                cv = coefficient_of_variation,
+                "Response variance too low (AI-like)"
+            );
             0.2
         } else if coefficient_of_variation > MAX_HUMAN_RESPONSE_VARIANCE {
             // Too variable - possibly gaming the system
-            debug!(cv = coefficient_of_variation, "Response variance suspiciously high");
+            debug!(
+                cv = coefficient_of_variation,
+                "Response variance suspiciously high"
+            );
             0.5
         } else {
             // Normal human range
@@ -655,17 +732,21 @@ impl HumannessDetector {
 
     /// Detect fatigue patterns (humans get tired, AI doesn't)
     pub fn analyze_fatigue_pattern(response_times_ms: &[u32], scores: &[f64]) -> (f64, f64) {
-        if response_times_ms.len() < FATIGUE_ONSET_CHALLENGE || scores.len() < FATIGUE_ONSET_CHALLENGE {
+        if response_times_ms.len() < FATIGUE_ONSET_CHALLENGE
+            || scores.len() < FATIGUE_ONSET_CHALLENGE
+        {
             return (0.0, 0.5); // Not enough data
         }
 
         // Compare first half to second half
         let mid = response_times_ms.len() / 2;
         let first_half_time: f64 = response_times_ms[..mid].iter().sum::<u32>() as f64 / mid as f64;
-        let second_half_time: f64 = response_times_ms[mid..].iter().sum::<u32>() as f64 / (response_times_ms.len() - mid) as f64;
+        let second_half_time: f64 = response_times_ms[mid..].iter().sum::<u32>() as f64
+            / (response_times_ms.len() - mid) as f64;
 
         let first_half_score: f64 = scores[..mid].iter().sum::<f64>() / mid as f64;
-        let second_half_score: f64 = scores[mid..].iter().sum::<f64>() / (scores.len() - mid) as f64;
+        let second_half_score: f64 =
+            scores[mid..].iter().sum::<f64>() / (scores.len() - mid) as f64;
 
         // Humans tend to slow down and make more errors over time
         let time_increase = (second_half_time - first_half_time) / first_half_time;
@@ -677,7 +758,11 @@ impl HumannessDetector {
         // Humanness: some fatigue is expected
         let fatigue_humanness = if fatigue < MIN_EXPECTED_FATIGUE {
             // No fatigue - suspicious for long tests
-            if response_times_ms.len() > 4 { 0.6 } else { 0.9 }
+            if response_times_ms.len() > 4 {
+                0.6
+            } else {
+                0.9
+            }
         } else if fatigue > 0.5 {
             // Too much fatigue
             0.7
@@ -698,9 +783,7 @@ impl HumannessDetector {
 
         // Attention decay: variance in consecutive response quality
         let attention_decay = if scores.len() >= 2 {
-            let diffs: Vec<f64> = scores.windows(2)
-                .map(|w| (w[1] - w[0]).abs())
-                .collect();
+            let diffs: Vec<f64> = scores.windows(2).map(|w| (w[1] - w[0]).abs()).collect();
             diffs.iter().sum::<f64>() / diffs.len() as f64
         } else {
             0.1
@@ -708,7 +791,8 @@ impl HumannessDetector {
 
         // Response variance (coefficient of variation)
         let response_variance = if response_times_ms.len() >= 2 {
-            let mean = response_times_ms.iter().sum::<u32>() as f64 / response_times_ms.len() as f64;
+            let mean =
+                response_times_ms.iter().sum::<u32>() as f64 / response_times_ms.len() as f64;
             let variance = response_times_ms
                 .iter()
                 .map(|&t| (t as f64 - mean).powi(2))
@@ -785,25 +869,32 @@ impl CapabilityTestSession {
     /// Record a response
     pub fn record_response(&mut self, challenge_id: &str, response: &TestResponse) {
         // Find the challenge
-        let challenge = self.challenges.iter()
-            .find(|(id, _, _)| id == challenge_id);
+        let challenge = self.challenges.iter().find(|(id, _, _)| id == challenge_id);
 
         if let Some((_, ctype, data)) = challenge {
             let response_text = String::from_utf8_lossy(&response.response_data).to_string();
 
             let (score, feedback) = match data {
-                ChallengeData::Independence(c) => {
-                    ResponseEvaluator::evaluate_independence(c, &response_text, response.response_time_ms)
-                }
-                ChallengeData::Detection(c) => {
-                    ResponseEvaluator::evaluate_detection(c, &response_text, response.response_time_ms)
-                }
-                ChallengeData::Alternatives(c) => {
-                    ResponseEvaluator::evaluate_alternatives(c, &response_text, response.response_time_ms)
-                }
-                ChallengeData::Critique(c) => {
-                    ResponseEvaluator::evaluate_critique(c, &response_text, response.response_time_ms)
-                }
+                ChallengeData::Independence(c) => ResponseEvaluator::evaluate_independence(
+                    c,
+                    &response_text,
+                    response.response_time_ms,
+                ),
+                ChallengeData::Detection(c) => ResponseEvaluator::evaluate_detection(
+                    c,
+                    &response_text,
+                    response.response_time_ms,
+                ),
+                ChallengeData::Alternatives(c) => ResponseEvaluator::evaluate_alternatives(
+                    c,
+                    &response_text,
+                    response.response_time_ms,
+                ),
+                ChallengeData::Critique(c) => ResponseEvaluator::evaluate_critique(
+                    c,
+                    &response_text,
+                    response.response_time_ms,
+                ),
             };
 
             self.responses.push(SessionResponse {
@@ -873,7 +964,11 @@ impl CapabilityTestSession {
 
         // Analyze humanness
         let degradation = HumannessDetector::calculate_degradation_score(&all_times, &all_scores);
-        let humanness_factor = if degradation.within_human_range { 1.0 } else { 0.7 };
+        let humanness_factor = if degradation.within_human_range {
+            1.0
+        } else {
+            0.7
+        };
 
         // Apply humanness penalty if AI-like behavior detected
         let adjusted_total = total * humanness_factor;
@@ -903,9 +998,18 @@ impl CapabilityTestSession {
             format!(
                 "Test failed. Total score {:.2} below threshold. Areas for improvement: {}",
                 adjusted_total,
-                if independence < 0.5 { "Independence " } else { "" }.to_string()
+                if independence < 0.5 {
+                    "Independence "
+                } else {
+                    ""
+                }
+                .to_string()
                     + if detection < 0.5 { "Detection " } else { "" }
-                    + if alternatives < 0.5 { "Alternatives " } else { "" }
+                    + if alternatives < 0.5 {
+                        "Alternatives "
+                    } else {
+                        ""
+                    }
                     + if critique < 0.5 { "Critique" } else { "" }
             )
         };
@@ -995,7 +1099,12 @@ impl CapabilityTestManager {
     }
 
     /// Record a response
-    pub async fn record_response(&self, session_id: &str, challenge_id: &str, response: &TestResponse) {
+    pub async fn record_response(
+        &self,
+        session_id: &str,
+        challenge_id: &str,
+        response: &TestResponse,
+    ) {
         let mut sessions = self.sessions.write().await;
         if let Some(session) = sessions.get_mut(session_id) {
             session.record_response(challenge_id, response);
@@ -1047,7 +1156,11 @@ impl CapabilityTestManager {
 
         let removed = initial_count - sessions.len();
         if removed > 0 {
-            info!(removed = removed, remaining = sessions.len(), "Expired test sessions cleaned up");
+            info!(
+                removed = removed,
+                remaining = sessions.len(),
+                "Expired test sessions cleaned up"
+            );
         }
         removed
     }
@@ -1098,11 +1211,13 @@ mod tests {
         };
 
         // Correct rejection
-        let (score, _) = ResponseEvaluator::evaluate_independence(&challenge, "I reject this suggestion", 5000);
+        let (score, _) =
+            ResponseEvaluator::evaluate_independence(&challenge, "I reject this suggestion", 5000);
         assert!(score > 0.8);
 
         // Incorrect acceptance
-        let (score, _) = ResponseEvaluator::evaluate_independence(&challenge, "I accept this", 5000);
+        let (score, _) =
+            ResponseEvaluator::evaluate_independence(&challenge, "I accept this", 5000);
         assert!(score < 0.4);
     }
 
@@ -1158,7 +1273,9 @@ mod tests {
                 response_time_ms: 5000 + (rand_variant() % 3000), // Simulate variance
                 submitted_at: None,
             };
-            manager.record_response(&session.session_id, id, &response).await;
+            manager
+                .record_response(&session.session_id, id, &response)
+                .await;
         }
 
         let result = manager.complete_session(&session.session_id).await;
@@ -1167,6 +1284,10 @@ mod tests {
 
     fn rand_variant() -> u32 {
         use std::time::{SystemTime, UNIX_EPOCH};
-        (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().subsec_nanos() % 1000) as u32
+        (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos()
+            % 1000) as u32
     }
 }

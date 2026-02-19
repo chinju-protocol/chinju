@@ -60,15 +60,17 @@ impl RequestHandler {
     ) -> EnclaveResponse {
         debug!("Handling GetAttestation request");
 
-        match self.nsm.get_attestation_document(
-            user_data.as_deref(),
-            Some(&challenge),
-            None,
-        ) {
+        match self
+            .nsm
+            .get_attestation_document(user_data.as_deref(), Some(&challenge), None)
+        {
             Ok(document) => EnclaveResponse::Attestation { document },
             Err(e) => {
                 error!("Attestation error: {}", e);
-                EnclaveResponse::error("ATTESTATION_ERROR", e.to_string())
+                EnclaveResponse::error(
+                    "ATTESTATION_ERROR",
+                    "Failed to generate attestation document".to_string(),
+                )
             }
         }
     }
@@ -80,7 +82,7 @@ impl RequestHandler {
             Ok(sealed_data) => EnclaveResponse::Sealed { sealed_data },
             Err(e) => {
                 error!("Seal error: {}", e);
-                EnclaveResponse::error("SEAL_ERROR", e.to_string())
+                EnclaveResponse::error("SEAL_ERROR", "Failed to seal data".to_string())
             }
         }
     }
@@ -92,13 +94,17 @@ impl RequestHandler {
             Ok(data) => EnclaveResponse::Unsealed { data },
             Err(e) => {
                 error!("Unseal error: {}", e);
-                EnclaveResponse::error("UNSEAL_ERROR", e.to_string())
+                EnclaveResponse::error("UNSEAL_ERROR", "Failed to unseal data".to_string())
             }
         }
     }
 
     fn handle_sign(&self, key_id: String, data: Vec<u8>) -> EnclaveResponse {
-        debug!("Handling Sign request (key={}, {} bytes)", key_id, data.len());
+        debug!(
+            "Handling Sign request (key={}, {} bytes)",
+            key_id,
+            data.len()
+        );
 
         match self.key_manager.sign(&key_id, &data) {
             Ok((signature, public_key)) => EnclaveResponse::Signature {
@@ -107,19 +113,22 @@ impl RequestHandler {
             },
             Err(e) => {
                 error!("Sign error: {}", e);
-                EnclaveResponse::error("SIGN_ERROR", e.to_string())
+                EnclaveResponse::error("SIGN_ERROR", "Failed to sign payload".to_string())
             }
         }
     }
 
     fn handle_generate_key_pair(&self, algorithm: String, label: String) -> EnclaveResponse {
-        debug!("Handling GenerateKeyPair request (algo={}, label={})", algorithm, label);
+        debug!(
+            "Handling GenerateKeyPair request (algo={}, label={})",
+            algorithm, label
+        );
 
         match self.key_manager.generate_key_pair(&algorithm, &label) {
             Ok((key_id, public_key)) => EnclaveResponse::KeyGenerated { key_id, public_key },
             Err(e) => {
                 error!("GenerateKeyPair error: {}", e);
-                EnclaveResponse::error("KEYGEN_ERROR", e.to_string())
+                EnclaveResponse::error("KEYGEN_ERROR", "Failed to generate key pair".to_string())
             }
         }
     }
@@ -131,7 +140,7 @@ impl RequestHandler {
             Ok(public_key) => EnclaveResponse::PublicKey { key_id, public_key },
             Err(e) => {
                 error!("GetPublicKey error: {}", e);
-                EnclaveResponse::error("KEY_NOT_FOUND", e.to_string())
+                EnclaveResponse::error("KEY_NOT_FOUND", "Key not found".to_string())
             }
         }
     }
@@ -143,7 +152,7 @@ impl RequestHandler {
             Ok(()) => EnclaveResponse::KeyDeleted { key_id },
             Err(e) => {
                 error!("DeleteKey error: {}", e);
-                EnclaveResponse::error("KEY_NOT_FOUND", e.to_string())
+                EnclaveResponse::error("KEY_NOT_FOUND", "Key not found".to_string())
             }
         }
     }
@@ -222,7 +231,10 @@ mod tests {
         });
 
         match response {
-            EnclaveResponse::Signature { signature, public_key } => {
+            EnclaveResponse::Signature {
+                signature,
+                public_key,
+            } => {
                 assert_eq!(signature.len(), 64);
                 assert_eq!(public_key.len(), 32);
             }
@@ -237,7 +249,9 @@ mod tests {
         let plaintext = b"secret data".to_vec();
 
         // Seal
-        let response = handler.handle(EnclaveRequest::Seal { data: plaintext.clone() });
+        let response = handler.handle(EnclaveRequest::Seal {
+            data: plaintext.clone(),
+        });
         let sealed_data = match response {
             EnclaveResponse::Sealed { sealed_data } => sealed_data,
             _ => panic!("Expected Sealed response"),

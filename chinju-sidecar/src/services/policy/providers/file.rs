@@ -157,16 +157,10 @@ impl PolicyProvider for FileProvider {
             drop(cache);
             self.refresh().await?;
             let cache = self.cache.read().await;
-            return Ok(cache
-                .values()
-                .filter_map(|p| p.metadata.clone())
-                .collect());
+            return Ok(cache.values().filter_map(|p| p.metadata.clone()).collect());
         }
 
-        Ok(cache
-            .values()
-            .filter_map(|p| p.metadata.clone())
-            .collect())
+        Ok(cache.values().filter_map(|p| p.metadata.clone()).collect())
     }
 
     async fn get_policy(&self, id: &Identifier) -> Result<Option<PolicyPack>, PolicyProviderError> {
